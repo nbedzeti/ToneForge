@@ -1,0 +1,1692 @@
+//
+//  ContentView.swift
+//  RingToneMaker
+//
+//  Created on 1/18/26.
+//
+
+import SwiftUI
+import MediaPlayer
+import AVFoundation
+import UniformTypeIdentifiers
+
+struct ContentView: View {
+    @Bindable var purchaseManager: PurchaseManager
+    
+    @State private var showingMediaPicker = false
+    @State private var showingDocumentPicker = false
+    @State private var selectedSongTitle: String = "No song selected"
+    @State private var selectedAudioURL: URL?
+    @State private var audioAsset: AVAsset?
+    @State private var audioDuration: TimeInterval = 0
+    @State private var showingAlert = false
+    @State private var alertMessage = ""
+    @State private var alertTitle = "Notice"
+    @State private var isAudioLoaded = false
+    
+    // Ringtone selection times
+    @State private var startTimeText: String = "0"
+    @State private var endTimeText: String = "30"
+    @State private var startTime: Double = 0
+    @State private var endTime: Double = 30
+    
+    // Audio playback
+    @State private var audioPlayer: AVAudioPlayer?
+    @State private var isPlaying = false
+    @State private var playbackTimer: Timer?
+    
+    // Export state
+    @State private var isExporting = false
+    @State private var exportedFileURL: URL?
+    @State private var showShareSheet = false
+    
+    // Monetization UI
+    @State private var showingPremiumView = false
+    @State private var showingLimitAlert = false
+    @State private var showingAdRewardAlert = false
+    @State private var showingAdSuccessToast = false
+    @State private var adSuccessMessage = ""
+    
+    private let maxRingtoneDuration: Double = 30
+    
+    var body: some View {
+        NavigationView {
+            if isAudioLoaded {
+                // Screen 2: Editor Screen (black background, green text, orange waveform)
+                ZStack {
+                    Color.black.ignoresSafeArea()
+                    
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            // Back button and title
+                            HStack {
+                                Button(action: {
+                                    isAudioLoaded = false
+                                    selectedAudioURL = nil
+                                    audioAsset = nil
+                                    selectedSongTitle = "No song selected"
+                                    stopPreview()
+                                }) {
+                                    HStack {
+                                        Image(systemName: "chevron.left")
+                                        Text("Back")
+                                    }
+                                    .foregroundColor(.green)
+                                }
+                                
+                                Spacer()
+                                
+                                Text("Edit Ringtone")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                
+                                Spacer()
+                                
+                                // Placeholder for symmetry
+                                HStack {
+                                    Image(systemName: "chevron.left")
+                                    Text("Back")
+                                }
+                                .opacity(0)
+                            }
+                            .padding()
+                            
+                            // Song title
+                            Text(selectedSongTitle)
+                                .font(.subheadline)
+                                .foregroundColor(.green.opacity(0.7))
+                                .lineLimit(1)
+                                .padding(.horizontal)
+                            
+                            // Waveform (orange)
+                            if let asset = audioAsset {
+                                WaveformView(
+                                    audioAsset: asset,
+                                    startTime: startTime,
+                                    endTime: endTime,
+                                    totalDuration: audioDuration
+                                )
+                                .frame(height: 100)
+                                .padding(.horizontal)
+                            }
+                            
+                            // Time controls
+                            VStack(spacing: 12) {
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text("Start")
+                                            .font(.caption)
+                                            .foregroundColor(.green.opacity(0.7))
+                                        TextField("0", text: $startTimeText)
+                                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                                            .keyboardType(.decimalPad)
+                                            .frame(width: 60)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    VStack(alignment: .trailing) {
+                                        Text("End")
+                                            .font(.caption)
+                                            .foregroundColor(.green.opacity(0.7))
+                                        TextField("30", text: $endTimeText)
+                                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                                            .keyboardType(.decimalPad)
+                                            .frame(width: 60)
+                                    }
+                                }
+                                
+                                Text("Duration: \(formatDuration(endTime - startTime))")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
+                            .padding()
+                            .background(Color.green.opacity(0.1))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.horizontal)
+                            
+                            // Export button
+                            Button(action: {
+                                handleExportAction()
+                            }) {
+                                HStack {
+                                    if isExporting {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                                        Text("Creating...")
+                                    } else {
+                                        Image(systemName: "scissors")
+                                        Text("Create Ringtone")
+                                    }
+                                }
+                                .font(.headline)
+                                .foregroundColor(.black)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.green)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            .disabled(isExporting || (endTime - startTime) > maxRingtoneDuration)
+                            .padding(.horizontal)
+                            
+                            Spacer()
+                        }
+                    }
+                }
+                .navigationBarHidden(true)
+            } else {
+                // Screen 1: Selection Screen
+                SelectionScreen(
+                    purchaseManager: purchaseManager,
+                    selectedSongTitle: $selectedSongTitle,
+                    showingMediaPicker: $showingMediaPicker,
+                    showingDocumentPicker: $showingDocumentPicker,
+                    showingPremiumView: $showingPremiumView,
+                    requestMediaLibraryAccess: requestMediaLibraryAccess
+                )
+            }
+        }
+        .sheet(isPresented: $showingMediaPicker) {
+            MediaPickerView(
+                selectedSongTitle: $selectedSongTitle,
+                selectedAudioURL: $selectedAudioURL,
+                onSongSelected: { url in
+                    loadAudioAsset(from: url)
+                }
+            )
+        }
+        .sheet(isPresented: $showingDocumentPicker) {
+            DocumentPickerView(
+                selectedSongTitle: $selectedSongTitle,
+                selectedAudioURL: $selectedAudioURL,
+                onFileSelected: { url in
+                    loadAudioAsset(from: url)
+                }
+            )
+        }
+        .alert(alertTitle, isPresented: $showingAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(alertMessage)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AudioLoadError"))) { notification in
+            if let message = notification.userInfo?["message"] as? String {
+                alertMessage = message
+                showingAlert = true
+            }
+        }
+        .onDisappear {
+            stopPreview()
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let url = exportedFileURL {
+                ShareSheet(items: [url]) {
+                    print("Share sheet dismissed")
+                }
+            }
+        }
+        .sheet(isPresented: $showingPremiumView) {
+            PurchaseView(purchaseManager: purchaseManager)
+        }
+    }
+    
+    // MARK: - Premium Status Banner
+    
+    private var premiumStatusBanner: some View {
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.horizontal, 16)
+                            
+                            // Waveform visualization
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Waveform")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                    
+                                    Spacer()
+                                    
+                                    // Preview play button
+                                    Button(action: {
+                                        if isPlaying {
+                                            stopPreview()
+                                        } else {
+                                            playPreview()
+                                        }
+                                    }) {
+                                        HStack(spacing: 3) {
+                                            Image(systemName: isPlaying ? "stop.fill" : "play.fill")
+                                                .font(.caption2)
+                                            Text(isPlaying ? "Stop" : "Preview")
+                                                .font(.caption2)
+                                        }
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(isPlaying ? Color.red : Color.green)
+                                        .clipShape(RoundedRectangle(cornerRadius: 15))
+                                    }
+                                    .disabled(!isValidSelection())
+                                }
+                                .padding(.horizontal, 16)
+                                
+                                WaveformView(
+                                    audioAsset: asset,
+                                    startTime: startTime,
+                                    endTime: endTime,
+                                    totalDuration: audioDuration
+                                )
+                                .frame(height: 80)
+                                .padding(.horizontal, 16)
+                                
+                                HStack(spacing: 12) {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "magnifyingglass")
+                                            .font(.system(size: 8))
+                                        Text("Pinch to zoom")
+                                            .font(.system(size: 9))
+                                    }
+                                    .foregroundColor(.secondary)
+                                    
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "hand.draw")
+                                            .font(.system(size: 8))
+                                        Text("Drag to pan")
+                                            .font(.system(size: 9))
+                                    }
+                                    .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 16)
+                                
+                                Text("Blue section = ringtone")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 16)
+                            }
+                            
+                            // Time selection controls
+                            VStack(spacing: 10) {
+                                Text("Select Duration")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                
+                                HStack(spacing: 12) {
+                                    // Start time
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Start (sec)")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.secondary)
+                                        
+                                        HStack(spacing: 6) {
+                                            TextField("0", text: $startTimeText)
+                                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                                .keyboardType(.decimalPad)
+                                                .frame(width: 50)
+                                                .font(.caption)
+                                                .onChange(of: startTimeText) { newValue in
+                                                    validateAndUpdateStartTime(newValue)
+                                                }
+                                            
+                                            Stepper("", value: Binding(
+                                                get: { startTime },
+                                                set: { newValue in
+                                                    startTime = max(0, min(newValue, audioDuration - 1))
+                                                    startTimeText = String(format: "%.1f", startTime)
+                                                    if endTime <= startTime {
+                                                        endTime = min(startTime + 1, audioDuration)
+                                                        endTimeText = String(format: "%.1f", endTime)
+                                                    }
+                                                }
+                                            ), in: 0...max(0, audioDuration - 1), step: 0.5)
+                                            .labelsHidden()
+                                            .scaleEffect(0.8)
+                                        }
+                                        
+                                        // Start time slider
+                                        Slider(
+                                            value: Binding(
+                                                get: { startTime },
+                                                set: { newValue in
+                                                    startTime = newValue
+                                                    startTimeText = String(format: "%.1f", startTime)
+                                                    if endTime <= startTime {
+                                                        endTime = min(startTime + 1, audioDuration)
+                                                        endTimeText = String(format: "%.1f", endTime)
+                                                    }
+                                                }
+                                            ),
+                                            in: 0...max(0, audioDuration - 1),
+                                            step: 0.1
+                                        )
+                                        .accentColor(.blue)
+                                    }
+                                    
+                                    // End time
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("End (sec)")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.secondary)
+                                        
+                                        HStack(spacing: 6) {
+                                            TextField("30", text: $endTimeText)
+                                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                                .keyboardType(.decimalPad)
+                                                .frame(width: 50)
+                                                .font(.caption)
+                                                .onChange(of: endTimeText) { newValue in
+                                                    validateAndUpdateEndTime(newValue)
+                                                }
+                                            
+                                            Stepper("", value: Binding(
+                                                get: { endTime },
+                                                set: { newValue in
+                                                    endTime = max(startTime + 0.5, min(newValue, audioDuration))
+                                                    endTimeText = String(format: "%.1f", endTime)
+                                                }
+                                            ), in: (startTime + 0.5)...audioDuration, step: 0.5)
+                                            .labelsHidden()
+                                            .scaleEffect(0.8)
+                                        }
+                                        
+                                        // End time slider
+                                        Slider(
+                                            value: Binding(
+                                                get: { endTime },
+                                                set: { newValue in
+                                                    endTime = newValue
+                                                    endTimeText = String(format: "%.1f", endTime)
+                                                    if endTime <= startTime {
+                                                        startTime = max(0, endTime - 1)
+                                                        startTimeText = String(format: "%.1f", startTime)
+                                                    }
+                                                }
+                                            ),
+                                            in: 0...audioDuration,
+                                            step: 0.1
+                                        )
+                                        .accentColor(.green)
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                                
+                                // Duration info
+                                let duration = endTime - startTime
+                                HStack(spacing: 6) {
+                                    Text("Duration: \(formatDuration(duration))")
+                                        .font(.caption)
+                                        .foregroundColor(duration <= maxRingtoneDuration ? .primary : .red)
+                                    
+                                    if duration > maxRingtoneDuration {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .foregroundColor(.red)
+                                            .font(.caption2)
+                                    } else if duration > 0 {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.green)
+                                            .font(.caption2)
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                                
+                                if duration > maxRingtoneDuration {
+                                    Text("Max 30 seconds")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.red)
+                                        .padding(.horizontal, 16)
+                                }
+                                
+                                if endTime > audioDuration {
+                                    Text("End time exceeds song duration")
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.red)
+                                        .padding(.horizontal, 16)
+                                }
+                            }
+                            .padding(.vertical, 8)
+                            .background(Color.gray.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 15))
+                            .padding(.horizontal, 16)
+                            
+                            // Export button (placeholder for future implementation)
+                            exportButton
+                            
+                            // Watch ads button (if needed)
+                            if purchaseManager.needsToWatchAdsOrUpgrade && !purchaseManager.isPremium {
+                                watchAdsButton
+                            }
+                            
+                            // Upgrade button (if not premium)
+                            if !purchaseManager.isPremium {
+                                upgradeButton
+                            }
+                            
+                            if let exportedURL = exportedFileURL {
+                                VStack(spacing: 10) {
+                                    HStack {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.green)
+                                        Text("Ringtone created successfully!")
+                                            .font(.subheadline)
+                                            .foregroundColor(.green)
+                                    }
+                                    
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "music.note")
+                                            .foregroundColor(.blue)
+                                        Text("M4R Format")
+                                            .font(.caption)
+                                            .foregroundColor(.blue)
+                                            .fontWeight(.semibold)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.blue.opacity(0.1))
+                                    .clipShape(RoundedRectangle(cornerRadius: 15))
+                                    
+                                    Button(action: {
+                                        shareRingtone()
+                                    }) {
+                                        HStack {
+                                            Image(systemName: "square.and.arrow.up")
+                                            Text("Share as Ringtone")
+                                        }
+                                        .font(.subheadline)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.blue)
+                                        .clipShape(RoundedRectangle(cornerRadius: 15))
+                                    }
+                                    
+                                    HStack(spacing: 15) {
+                                        Button(action: {
+                                            if let url = exportedFileURL {
+                                                openInFiles(url: url)
+                                            }
+                                        }) {
+                                            VStack(spacing: 4) {
+                                                Image(systemName: "folder")
+                                                    .font(.title3)
+                                                Text("Open in Files")
+                                                    .font(.caption2)
+                                            }
+                                            .foregroundColor(.blue)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 8)
+                                            .background(Color.blue.opacity(0.1))
+                                            .clipShape(RoundedRectangle(cornerRadius: 15))
+                                        }
+                                        
+                                        Button(action: {
+                                            deleteExportedFile()
+                                        }) {
+                                            VStack(spacing: 4) {
+                                                Image(systemName: "trash")
+                                                    .font(.title3)
+                                                Text("Delete")
+                                                    .font(.caption2)
+                                            }
+                                            .foregroundColor(.red)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 8)
+                                            .background(Color.red.opacity(0.1))
+                                            .clipShape(RoundedRectangle(cornerRadius: 15))
+                                        }
+                                    }
+                                    
+                                    Text("File: \(exportedURL.lastPathComponent)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("Duration: \(formatDuration(min(endTime - startTime, maxRingtoneDuration)))")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding()
+                                .background(Color.green.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 15))
+                                .padding(.horizontal, 16)
+                            }
+                        }
+                    } else if !isAudioLoaded {
+                        Text("Select a song to create your custom ringtone")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                    }
+                    
+                    Spacer(minLength: 20)
+                    }
+                }
+            }
+            .navigationTitle("RingTone Maker")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingMediaPicker) {
+                MediaPickerView(
+                    selectedSongTitle: $selectedSongTitle,
+                    selectedAudioURL: $selectedAudioURL,
+                    onSongSelected: { url in
+                        loadAudioAsset(from: url)
+                    }
+                )
+            }
+            .sheet(isPresented: $showingDocumentPicker) {
+                DocumentPickerView(
+                    selectedSongTitle: $selectedSongTitle,
+                    selectedAudioURL: $selectedAudioURL,
+                    onFileSelected: { url in
+                        loadAudioAsset(from: url)
+                    }
+                )
+            }
+            .alert(alertTitle, isPresented: $showingAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(alertMessage)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AudioLoadError"))) { notification in
+                if let message = notification.userInfo?["message"] as? String {
+                    alertMessage = message
+                    showingAlert = true
+                }
+            }
+            .onDisappear {
+                // Clean up audio player when view disappears
+                stopPreview()
+            }
+            .sheet(isPresented: $showShareSheet) {
+                if let url = exportedFileURL {
+                    ShareSheet(items: [url]) {
+                        // Optional: Handle post-share actions
+                        print("Share sheet dismissed")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingPremiumView) {
+                PurchaseView(purchaseManager: purchaseManager)
+            }
+            .alert("Limit Reached", isPresented: $showingLimitAlert) {
+                Button("Watch Ads", role: .none) {
+                    watchRewardedAd()
+                }
+                Button("Go Premium", role: .none) {
+                    showingPremiumView = true
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("You've used your 3 free ringtone creations. Watch 3 ads to unlock 1 more, or upgrade to Premium for unlimited creations.")
+            }
+            .alert("Ad Reward", isPresented: $showingAdRewardAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Great! You've watched \(purchaseManager.adsWatchedForNextUnlock)/3 ads. \(purchaseManager.adsWatchedForNextUnlock >= 3 ? "You've unlocked 1 ringtone!" : "Watch \(3 - purchaseManager.adsWatchedForNextUnlock) more to unlock 1 ringtone.")")
+            }
+            .overlay(alignment: .top) {
+                // Success toast
+                if showingAdSuccessToast {
+                    VStack {
+                        HStack(spacing: 12) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.white)
+                                .font(.title3)
+                            
+                            Text(adSuccessMessage)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                        }
+                        .padding()
+                        .background(Color.green)
+                        .clipShape(RoundedRectangle(cornerRadius: 15))
+                        .shadow(radius: 10)
+                        .padding(.top, 60)
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.spring(), value: showingAdSuccessToast)
+                }
+            }
+            .navigationTitle("RingTone Maker")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingMediaPicker) {
+                MediaPickerView(
+                    selectedSongTitle: $selectedSongTitle,
+                    selectedAudioURL: $selectedAudioURL,
+                    onSongSelected: { url in
+                        loadAudioAsset(from: url)
+                    }
+                )
+            }
+            .sheet(isPresented: $showingDocumentPicker) {
+                DocumentPickerView(
+                    selectedSongTitle: $selectedSongTitle,
+                    selectedAudioURL: $selectedAudioURL,
+                    onFileSelected: { url in
+                        loadAudioAsset(from: url)
+                    }
+                )
+            }
+            .alert(alertTitle, isPresented: $showingAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(alertMessage)
+            }
+        }
+    }
+    
+    // MARK: - Premium Status Banner
+    
+    private var premiumStatusBanner: some View {
+        VStack(spacing: 10) {
+            if purchaseManager.remainingFreeCreations > 0 {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.2))
+                            .frame(width: 40, height: 40)
+                        
+                        Image(systemName: "gift.fill")
+                            .foregroundColor(.blue)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(purchaseManager.remainingFreeCreations) Free Ringtones")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Text("Create \(purchaseManager.remainingFreeCreations) more for free")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        showingPremiumView = true
+                    }) {
+                        Text("Premium")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.blue.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                }
+                .padding()
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+            }
+            
+            if purchaseManager.extraCreationsAvailable > 0 {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.green.opacity(0.2))
+                            .frame(width: 40, height: 40)
+                        
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(purchaseManager.extraCreationsAvailable) Unlocked")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Text("Earned by watching ads")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                }
+                .padding()
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+            }
+            
+            if purchaseManager.adsWatchedForNextUnlock > 0 && !purchaseManager.isPremium {
+                VStack(spacing: 8) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.orange.opacity(0.2))
+                                .frame(width: 40, height: 40)
+                            
+                            Image(systemName: "tv.fill")
+                                .foregroundColor(.orange)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Next Unlock Progress")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            Text("\(purchaseManager.adsWatchedForNextUnlock)/3 ads watched")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    ProgressView(value: purchaseManager.adUnlockProgress)
+                        .tint(.orange)
+                }
+                .padding()
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+            }
+        }
+    }
+    
+    // MARK: - Export Button
+    
+    private var exportButton: some View {
+        Button(action: {
+            handleExportAction()
+        }) {
+            HStack {
+                if isExporting {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    Text("Creating Ringtone...")
+                } else {
+                    Image(systemName: "scissors")
+                    exportButtonText
+                }
+            }
+            .font(.headline)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(exportButtonColor)
+            .clipShape(RoundedRectangle(cornerRadius: 15))
+        }
+        .disabled(!isValidSelection() || isExporting)
+        .padding(.horizontal, 20)
+    }
+    
+    private var exportButtonText: Text {
+        if purchaseManager.isPremium {
+            return Text("Export Ringtone (Unlimited)")
+        } else if purchaseManager.remainingFreeCreations > 0 {
+            return Text("Export Ringtone (\(purchaseManager.remainingFreeCreations) free left)")
+        } else if purchaseManager.extraCreationsAvailable > 0 {
+            return Text("Export Ringtone (\(purchaseManager.extraCreationsAvailable) unlocked)")
+        } else {
+            return Text("Upgrade or Watch Ads")
+        }
+    }
+    
+    private var exportButtonColor: Color {
+        if !isValidSelection() || isExporting {
+            return Color.gray
+        } else if purchaseManager.canCreateRingtone {
+            return Color.green
+        } else {
+            return Color.orange
+        }
+    }
+    
+    // MARK: - Watch Ads Button
+    
+    private var watchAdsButton: some View {
+        Button(action: {
+            watchRewardedAd()
+        }) {
+            VStack(spacing: 8) {
+                HStack {
+                    Image(systemName: "play.rectangle.fill")
+                    Text("Watch Ad to Unlock Ringtone")
+                }
+                .font(.headline)
+                
+                if purchaseManager.adsWatchedForNextUnlock > 0 {
+                    Text("\(purchaseManager.adsWatchedForNextUnlock)/3 ads watched")
+                        .font(.caption)
+                }
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.blue)
+            .clipShape(RoundedRectangle(cornerRadius: 15))
+        }
+        .padding(.horizontal, 16)
+    }
+    
+    // MARK: - Upgrade Button
+    
+    private var upgradeButton: some View {
+        Button(action: {
+            showingPremiumView = true
+        }) {
+            HStack {
+                Image(systemName: "crown.fill")
+                Text("Upgrade to Premium")
+            }
+            .font(.subheadline)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(
+                LinearGradient(
+                    colors: [Color.purple, Color.blue],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 15))
+        }
+        .padding(.horizontal, 16)
+    }
+    
+    // MARK: - Export Handling
+    
+    private func handleExportAction() {
+        // Check if user can create ringtone
+        guard purchaseManager.canCreateRingtone else {
+            // Show limit alert with options
+            showingLimitAlert = true
+            return
+        }
+        
+        // Proceed with export
+        trimAndExportAudio()
+    }
+    
+    // MARK: - Watch Rewarded Ad
+    
+    private func watchRewardedAd() {
+        purchaseManager.showRewardedAd { [self] success in
+            if success {
+                // Show success toast
+                if purchaseManager.extraCreationsAvailable > 0 {
+                    adSuccessMessage = "🎉 Unlocked 1 ringtone! You now have \(purchaseManager.extraCreationsAvailable) available."
+                } else {
+                    adSuccessMessage = "✅ Ad watched! \(purchaseManager.adsWatchedForNextUnlock)/3 complete."
+                }
+                
+                showingAdSuccessToast = true
+                
+                // Hide toast after 3 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                    showingAdSuccessToast = false
+                }
+                
+                // Also show the alert for detailed info
+                showingAdRewardAlert = true
+            } else {
+                // Show error
+                alertTitle = "Ad Not Available"
+                alertMessage = purchaseManager.adManager?.lastAdError ?? "Unable to load ad. Please try again later or upgrade to Premium for unlimited ringtones."
+                showingAlert = true
+            }
+        }
+    }
+    
+    private func loadAudioAsset(from url: URL) {
+        // Create AVAsset from the audio URL
+        let asset = AVAsset(url: url)
+        self.audioAsset = asset
+        
+        // Load the duration asynchronously
+        Task {
+            do {
+                // Validate audio format
+                guard let track = try await asset.loadTracks(withMediaType: .audio).first else {
+                    throw AudioError.noAudioTrack
+                }
+                
+                // Check if format is supported
+                let formatDescriptions = try await track.load(.formatDescriptions)
+                guard !formatDescriptions.isEmpty else {
+                    throw AudioError.unsupportedFormat
+                }
+                
+                let duration = try await asset.load(.duration)
+                let seconds = CMTimeGetSeconds(duration)
+                
+                // Validate duration
+                guard seconds > 0 && seconds.isFinite else {
+                    throw AudioError.invalidDuration
+                }
+                
+                await MainActor.run {
+                    self.audioDuration = seconds
+                    self.isAudioLoaded = true
+                    
+                    // Stop any playing audio
+                    self.stopPreview()
+                    
+                    // Set default end time to min of 30 seconds or total duration
+                    self.endTime = min(30, seconds)
+                    self.endTimeText = String(format: "%.0f", self.endTime)
+                    self.startTime = 0
+                    self.startTimeText = "0"
+                    
+                    // Show success message
+                    self.alertTitle = "Success"
+                    self.alertMessage = "Audio loaded successfully! Duration: \(formatDuration(seconds))"
+                    self.showingAlert = true
+                }
+            } catch let error as AudioError {
+                await MainActor.run {
+                    alertTitle = "Audio Error"
+                    alertMessage = error.localizedDescription
+                    showingAlert = true
+                    isAudioLoaded = false
+                }
+            } catch {
+                await MainActor.run {
+                    alertTitle = "Error"
+                    alertMessage = "Failed to load audio: \(error.localizedDescription)"
+                    showingAlert = true
+                    isAudioLoaded = false
+                }
+            }
+        }
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+    
+    private func validateAndUpdateStartTime(_ text: String) {
+        // Stop playback when changing times
+        if isPlaying {
+            stopPreview()
+        }
+        
+        // Handle empty input
+        if text.isEmpty {
+            startTime = 0
+            return
+        }
+        
+        guard let value = Double(text) else {
+            alertTitle = "Invalid Input"
+            alertMessage = "Please enter a valid number for start time."
+            showingAlert = true
+            startTimeText = String(format: "%.1f", startTime)
+            return
+        }
+        
+        guard value >= 0 else {
+            alertTitle = "Invalid Time"
+            alertMessage = "Start time cannot be negative."
+            showingAlert = true
+            startTimeText = String(format: "%.1f", startTime)
+            return
+        }
+        
+        guard value < audioDuration else {
+            alertTitle = "Invalid Time"
+            alertMessage = "Start time must be less than song duration (\(formatDuration(audioDuration)))."
+            showingAlert = true
+            startTimeText = String(format: "%.1f", startTime)
+            return
+        }
+        
+        let clampedValue = min(value, audioDuration - 0.5)
+        startTime = clampedValue
+        
+        // Ensure end time is after start time
+        if endTime <= startTime {
+            endTime = min(startTime + 1, audioDuration)
+            endTimeText = String(format: "%.1f", endTime)
+        }
+        
+        // Validate max duration
+        if endTime - startTime > maxRingtoneDuration {
+            endTime = startTime + maxRingtoneDuration
+            endTimeText = String(format: "%.1f", endTime)
+            alertTitle = "Duration Adjusted"
+            alertMessage = "End time adjusted to maintain 30-second maximum duration."
+            showingAlert = true
+        }
+    }
+    
+    private func validateAndUpdateEndTime(_ text: String) {
+        // Stop playback when changing times
+        if isPlaying {
+            stopPreview()
+        }
+        
+        // Handle empty input
+        if text.isEmpty {
+            endTime = min(30, audioDuration)
+            return
+        }
+        
+        guard let value = Double(text) else {
+            alertTitle = "Invalid Input"
+            alertMessage = "Please enter a valid number for end time."
+            showingAlert = true
+            endTimeText = String(format: "%.1f", endTime)
+            return
+        }
+        
+        guard value > 0 else {
+            alertTitle = "Invalid Time"
+            alertMessage = "End time must be greater than zero."
+            showingAlert = true
+            endTimeText = String(format: "%.1f", endTime)
+            return
+        }
+        
+        guard value <= audioDuration else {
+            alertTitle = "Invalid Time"
+            alertMessage = "End time cannot exceed song duration (\(formatDuration(audioDuration)))."
+            showingAlert = true
+            endTimeText = String(format: "%.1f", endTime)
+            return
+        }
+        
+        let clampedValue = min(value, audioDuration)
+        endTime = clampedValue
+        
+        // Ensure end time is after start time
+        if endTime <= startTime {
+            startTime = max(0, endTime - 1)
+            startTimeText = String(format: "%.1f", startTime)
+            alertTitle = "Time Adjusted"
+            alertMessage = "Start time adjusted to be before end time."
+            showingAlert = true
+        }
+        
+        // Validate max duration
+        if endTime - startTime > maxRingtoneDuration {
+            startTime = endTime - maxRingtoneDuration
+            startTimeText = String(format: "%.1f", startTime)
+            alertTitle = "Duration Adjusted"
+            alertMessage = "Start time adjusted to maintain 30-second maximum duration."
+            showingAlert = true
+        }
+    }
+    
+    private func isValidSelection() -> Bool {
+        let duration = endTime - startTime
+        return duration > 0 && duration <= maxRingtoneDuration && endTime <= audioDuration && startTime >= 0
+    }
+    
+    private func playPreview() {
+        guard let url = selectedAudioURL, isValidSelection() else {
+            alertTitle = "Cannot Play"
+            alertMessage = "Cannot play preview. Please select a valid audio range."
+            showingAlert = true
+            return
+        }
+        
+        do {
+            // Create audio player
+            audioPlayer = try AVAudioPlayer(contentsOf: url)
+            audioPlayer?.prepareToPlay()
+            
+            // Set start time
+            audioPlayer?.currentTime = startTime
+            
+            // Start playing
+            audioPlayer?.play()
+            isPlaying = true
+            
+            // Calculate duration to play
+            let playDuration = endTime - startTime
+            
+            // Set up timer to stop at end time
+            playbackTimer?.invalidate()
+            playbackTimer = Timer.scheduledTimer(withTimeInterval: playDuration, repeats: false) { _ in
+                stopPreview()
+            }
+            
+        } catch {
+            alertTitle = "Playback Error"
+            alertMessage = "Failed to play audio: \(error.localizedDescription)"
+            showingAlert = true
+            isPlaying = false
+        }
+    }
+    
+    private func stopPreview() {
+        audioPlayer?.stop()
+        audioPlayer = nil
+        playbackTimer?.invalidate()
+        playbackTimer = nil
+        isPlaying = false
+    }
+    
+    private func trimAndExportAudio() {
+        guard let asset = audioAsset, isValidSelection() else {
+            alertTitle = "Cannot Export"
+            alertMessage = "Cannot export. Please select a valid audio range."
+            showingAlert = true
+            return
+        }
+        
+        // Final check for creation ability
+        guard purchaseManager.canCreateRingtone else {
+            showingLimitAlert = true
+            return
+        }
+        
+        // Stop any playing audio
+        stopPreview()
+        
+        isExporting = true
+        exportedFileURL = nil
+        
+        Task {
+            do {
+                let exportedURL = try await exportAudioSegment(
+                    asset: asset,
+                    startTime: startTime,
+                    endTime: endTime,
+                    songTitle: selectedSongTitle
+                )
+                
+                await MainActor.run {
+                    self.exportedFileURL = exportedURL
+                    self.isExporting = false
+                    
+                    // Use a creation (free or ad-unlocked)
+                    purchaseManager.useFreeCreation()
+                    
+                    // Optional: Clean up old ringtones to save space
+                    // Uncomment the line below to auto-delete old ringtones
+                    // self.cleanupOldRingtones(keepingCurrent: exportedURL)
+                    
+                    self.alertTitle = "Success"
+                    self.alertMessage = "Ringtone created successfully as M4R file! Tap 'Share as Ringtone' to save or share it."
+                    self.showingAlert = true
+                }
+            } catch let error as ExportError {
+                await MainActor.run {
+                    self.isExporting = false
+                    self.alertTitle = "Export Failed"
+                    self.alertMessage = error.localizedDescription
+                    self.showingAlert = true
+                }
+            } catch {
+                await MainActor.run {
+                    self.isExporting = false
+                    self.alertTitle = "Export Failed"
+                    self.alertMessage = "Failed to create ringtone: \(error.localizedDescription)"
+                    self.showingAlert = true
+                }
+            }
+        }
+    }
+    
+    private func exportAudioSegment(asset: AVAsset, startTime: Double, endTime: Double, songTitle: String) async throws -> URL {
+        // Ensure duration doesn't exceed 30 seconds
+        let duration = endTime - startTime
+        let cappedEndTime = startTime + min(duration, maxRingtoneDuration)
+        
+        // Validate times
+        guard startTime >= 0 && cappedEndTime > startTime else {
+            throw ExportError.invalidTimeRange
+        }
+        
+        // Create output file URL in documents directory
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let timestamp = Int(Date().timeIntervalSince1970)
+        let sanitizedTitle = songTitle.components(separatedBy: CharacterSet.alphanumerics.inverted).joined()
+        
+        // First export as M4A (required by AVAssetExportSession)
+        let tempFileName = "Temp_\(timestamp).m4a"
+        let tempURL = documentsPath.appendingPathComponent(tempFileName)
+        
+        // Final M4R filename
+        let ringtoneFileName = "Ringtone_\(sanitizedTitle)_\(timestamp).m4r"
+        let ringtoneURL = documentsPath.appendingPathComponent(ringtoneFileName)
+        
+        // Remove existing files if they exist
+        try? FileManager.default.removeItem(at: tempURL)
+        try? FileManager.default.removeItem(at: ringtoneURL)
+        
+        // Create export session
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
+            throw ExportError.sessionCreationFailed
+        }
+        
+        // Configure export session
+        exportSession.outputURL = tempURL
+        exportSession.outputFileType = .m4a
+        
+        // Set time range for trimming (with 30-second cap)
+        let start = CMTime(seconds: startTime, preferredTimescale: 600)
+        let end = CMTime(seconds: cappedEndTime, preferredTimescale: 600)
+        let timeRange = CMTimeRange(start: start, end: end)
+        exportSession.timeRange = timeRange
+        
+        // Perform export
+        await exportSession.export()
+        
+        // Check export status
+        switch exportSession.status {
+        case .completed:
+            // Rename M4A to M4R (they are structurally identical)
+            do {
+                try FileManager.default.moveItem(at: tempURL, to: ringtoneURL)
+                return ringtoneURL
+            } catch {
+                throw ExportError.fileOperationFailed(error.localizedDescription)
+            }
+            
+        case .failed:
+            // Clean up temp file if it exists
+            try? FileManager.default.removeItem(at: tempURL)
+            
+            if let error = exportSession.error {
+                throw ExportError.exportFailed(error.localizedDescription)
+            } else {
+                throw ExportError.unknownError
+            }
+            
+        case .cancelled:
+            // Clean up temp file if it exists
+            try? FileManager.default.removeItem(at: tempURL)
+            throw ExportError.cancelled
+            
+        default:
+            // Clean up temp file if it exists
+            try? FileManager.default.removeItem(at: tempURL)
+            throw ExportError.unexpectedStatus(exportSession.status.rawValue)
+        }
+    }
+    
+    private func getRingtoneURL() -> URL? {
+        return exportedFileURL
+    }
+    
+    private func getDocumentsDirectory() -> URL {
+        return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+    
+    private func listExportedRingtones() -> [URL] {
+        let documentsPath = getDocumentsDirectory()
+        
+        do {
+            let fileURLs = try FileManager.default.contentsOfDirectory(
+                at: documentsPath,
+                includingPropertiesForKeys: nil,
+                options: .skipsHiddenFiles
+            )
+            
+            // Filter for M4R files
+            return fileURLs.filter { $0.pathExtension.lowercased() == "m4r" }
+        } catch {
+            print("Error listing ringtones: \(error)")
+            return []
+        }
+    }
+    
+    private func shareRingtone() {
+        guard let url = exportedFileURL else {
+            alertTitle = "No File"
+            alertMessage = "No ringtone file to share."
+            showingAlert = true
+            return
+        }
+        
+        // Verify file exists
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            alertTitle = "File Not Found"
+            alertMessage = "Ringtone file not found. Please create a new ringtone."
+            showingAlert = true
+            exportedFileURL = nil
+            return
+        }
+        
+        showShareSheet = true
+    }
+    
+    private func openInFiles(url: URL) {
+        // This will open the Files app to the location
+        // Note: On iOS, this typically opens the share sheet which includes "Save to Files"
+        let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        activityVC.excludedActivityTypes = [
+            .assignToContact,
+            .addToReadingList,
+            .openInIBooks,
+            .markupAsPDF,
+            .airDrop,
+            .mail,
+            .message
+        ]
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootViewController = windowScene.windows.first?.rootViewController {
+            rootViewController.present(activityVC, animated: true)
+        }
+    }
+    
+    private func deleteExportedFile() {
+        guard let url = exportedFileURL else { return }
+        
+        do {
+            try FileManager.default.removeItem(at: url)
+            exportedFileURL = nil
+            alertTitle = "Success"
+            alertMessage = "Ringtone file deleted successfully."
+            showingAlert = true
+        } catch {
+            alertTitle = "Delete Failed"
+            alertMessage = "Failed to delete file: \(error.localizedDescription)"
+            showingAlert = true
+        }
+    }
+    
+    private func cleanupOldRingtones(keepingCurrent currentURL: URL?) {
+        let ringtones = listExportedRingtones()
+        
+        for url in ringtones {
+            // Don't delete the current exported file
+            if let current = currentURL, url == current {
+                continue
+            }
+            
+            // Delete old ringtones (optional: could add age check here)
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+    
+    private func requestMediaLibraryAccess() {
+        let status = MPMediaLibrary.authorizationStatus()
+        
+        switch status {
+        case .authorized:
+            showingMediaPicker = true
+        case .notDetermined:
+            MPMediaLibrary.requestAuthorization { newStatus in
+                DispatchQueue.main.async {
+                    if newStatus == .authorized {
+                        showingMediaPicker = true
+                    } else {
+                        alertTitle = "Permission Denied"
+                        alertMessage = "Access to media library is required to select songs. Please enable it in Settings > Privacy > Media & Apple Music."
+                        showingAlert = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            alertTitle = "Permission Required"
+            alertMessage = "Please enable media library access in Settings > Privacy > Media & Apple Music to select songs."
+            showingAlert = true
+        @unknown default:
+            alertTitle = "Error"
+            alertMessage = "Unable to access media library."
+            showingAlert = true
+        }
+    }
+}
+
+// MARK: - Error Types
+
+enum AudioError: LocalizedError {
+    case noAudioTrack
+    case unsupportedFormat
+    case invalidDuration
+    case loadFailed(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .noAudioTrack:
+            return "No audio track found in the selected file."
+        case .unsupportedFormat:
+            return "This audio format is not supported. Please select a different song."
+        case .invalidDuration:
+            return "Unable to determine audio duration. The file may be corrupted."
+        case .loadFailed(let message):
+            return "Failed to load audio: \(message)"
+        }
+    }
+}
+
+enum ExportError: LocalizedError {
+    case invalidTimeRange
+    case sessionCreationFailed
+    case exportFailed(String)
+    case fileOperationFailed(String)
+    case cancelled
+    case unknownError
+    case unexpectedStatus(Int)
+    
+    var errorDescription: String? {
+        switch self {
+        case .invalidTimeRange:
+            return "Invalid time range selected. Start time must be before end time."
+        case .sessionCreationFailed:
+            return "Failed to create export session. The audio format may not be supported."
+        case .exportFailed(let message):
+            return "Export failed: \(message)"
+        case .fileOperationFailed(let message):
+            return "File operation failed: \(message)"
+        case .cancelled:
+            return "Export was cancelled."
+        case .unknownError:
+            return "Export failed with an unknown error. Please try again."
+        case .unexpectedStatus(let status):
+            return "Export ended with unexpected status code: \(status)"
+        }
+    }
+}
+
+struct MediaPickerView: UIViewControllerRepresentable {
+    @Binding var selectedSongTitle: String
+    @Binding var selectedAudioURL: URL?
+    var onSongSelected: (URL) -> Void
+    @Environment(\.presentationMode) var presentationMode
+    
+    func makeUIViewController(context: Context) -> MPMediaPickerController {
+        let picker = MPMediaPickerController(mediaTypes: .music)
+        picker.allowsPickingMultipleItems = false
+        picker.showsCloudItems = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: MPMediaPickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, MPMediaPickerControllerDelegate {
+        let parent: MediaPickerView
+        
+        init(_ parent: MediaPickerView) {
+            self.parent = parent
+        }
+        
+        func mediaPicker(_ mediaPicker: MPMediaPickerController, didPickMediaItems mediaItemCollection: MPMediaItemCollection) {
+            if let item = mediaItemCollection.items.first {
+                let title = item.title ?? "Unknown Title"
+                let artist = item.artist ?? "Unknown Artist"
+                parent.selectedSongTitle = "\(title) - \(artist)"
+                
+                // Get the asset URL from the media item
+                if let assetURL = item.assetURL {
+                    parent.selectedAudioURL = assetURL
+                    parent.onSongSelected(assetURL)
+                } else {
+                    // Handle error: No URL available (e.g., DRM-protected or cloud-only content)
+                    DispatchQueue.main.async {
+                        self.parent.selectedSongTitle = "Error: Cannot access this song"
+                        self.parent.selectedAudioURL = nil
+                        
+                        // Show alert through a notification or callback
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("AudioLoadError"),
+                            object: nil,
+                            userInfo: ["message": "This song cannot be accessed. It may be DRM-protected or only available in the cloud. Please select a downloaded song from your library."]
+                        )
+                    }
+                }
+            }
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+        
+        func mediaPickerDidCancel(_ mediaPicker: MPMediaPickerController) {
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+    }
+}
+
+// Document Picker for selecting audio files (used in simulator)
+struct DocumentPickerView: UIViewControllerRepresentable {
+    @Binding var selectedSongTitle: String
+    @Binding var selectedAudioURL: URL?
+    var onFileSelected: (URL) -> Void
+    @Environment(\.presentationMode) var presentationMode
+    
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.audio, .mp3, .mpeg4Audio], asCopy: true)
+        picker.allowsMultipleSelection = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: DocumentPickerView
+        
+        init(_ parent: DocumentPickerView) {
+            self.parent = parent
+        }
+        
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { return }
+            
+            // Get filename
+            let filename = url.lastPathComponent
+            parent.selectedSongTitle = filename
+            parent.selectedAudioURL = url
+            parent.onFileSelected(url)
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+        
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+    }
+}
+
+#Preview {
+    ContentView(purchaseManager: PurchaseManager())
+}
+
+// How It Works Step Component
+struct HowItWorksStep: View {
+    let number: String
+    let icon: String
+    let title: String
+    let description: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(
+                        gradient: Gradient(colors: [Color.blue.opacity(0.3), Color.purple.opacity(0.3)]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 50, height: 50)
+                
+                VStack(spacing: 2) {
+                    Image(systemName: icon)
+                        .font(.system(size: 14))
+                        .foregroundColor(.blue)
+                    Text(number)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.blue)
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+    }
+}
+
+// ShareSheet for sharing exported files
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    let onDismiss: (() -> Void)?
+    
+    init(items: [Any], onDismiss: (() -> Void)? = nil) {
+        self.items = items
+        self.onDismiss = onDismiss
+    }
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        
+        // Suggest filename for saving
+        if let url = items.first as? URL {
+            controller.title = "Share Ringtone"
+        }
+        
+        // Exclude some activities that don't make sense for ringtones
+        controller.excludedActivityTypes = [
+            .assignToContact,
+            .addToReadingList,
+            .openInIBooks,
+            .markupAsPDF
+        ]
+        
+        // Set completion handler
+        controller.completionWithItemsHandler = { _, completed, _, error in
+            if let error = error {
+                print("Share error: \(error.localizedDescription)")
+            }
+            
+            if completed {
+                print("Share completed successfully")
+            }
+            
+            // Call dismiss handler
+            context.coordinator.onDismiss?()
+        }
+        
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onDismiss: onDismiss)
+    }
+    
+    class Coordinator {
+        let onDismiss: (() -> Void)?
+        
+        init(onDismiss: (() -> Void)?) {
+            self.onDismiss = onDismiss
+        }
+    }
+}
