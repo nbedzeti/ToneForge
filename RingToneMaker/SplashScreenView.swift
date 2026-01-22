@@ -28,7 +28,7 @@ struct SplashScreenView: View {
                     .shadow(color: .green.opacity(glowIntensity), radius: 40)
                 
                 // App name
-                Text("ToneForge")
+                Text("ToneForge Studio")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.green)
                     .opacity(opacity)

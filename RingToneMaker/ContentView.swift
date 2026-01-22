@@ -122,7 +122,7 @@ struct ContentView: View {
                                 .foregroundColor(.green)
                                 .shadow(color: .green.opacity(0.5), radius: 20)
                             
-                            Text("ToneForge")
+                            Text("ToneForge Studio")
                                 .font(.system(size: min(32, geometry.size.width * 0.08), weight: .bold, design: .rounded))
                                 .foregroundColor(.green)
                             
@@ -500,41 +500,66 @@ struct ContentView: View {
                             }
                             .padding(.horizontal, geometry.size.width * 0.05)
                             
-                            // Success message
-                            if exportedFileURL != nil {
-                                VStack(spacing: 12) {
-                                    HStack {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.green)
-                                        Text("Ringtone Created!")
-                                            .foregroundColor(.green)
-                                    }
-                                    
-                                    Button(action: { showShareSheet = true }) {
-                                        HStack {
-                                            Image(systemName: "square.and.arrow.up")
-                                            Text("Share")
-                                        }
-                                        .foregroundColor(.black)
-                                        .frame(maxWidth: .infinity)
-                                        .padding()
-                                        .background(Color.green.opacity(0.8))
-                                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    }
-                                }
-                                .padding()
-                                .frame(maxWidth: .infinity)
-                                .background(Color.green.opacity(0.1))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                                )
-                                .padding(.horizontal, geometry.size.width * 0.05)
-                            }
-                            
                             Spacer(minLength: 10)
                         }
                     }
+                }
+                
+                // Success overlay - appears on top
+                if exportedFileURL != nil {
+                    ZStack {
+                        Color.black.opacity(0.7)
+                            .ignoresSafeArea()
+                            .onTapGesture {
+                                exportedFileURL = nil
+                            }
+                        
+                        VStack(spacing: 20) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 60))
+                                .foregroundColor(.green)
+                            
+                            Text("Ringtone Created!")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.green)
+                            
+                            Text("Your ringtone is ready to use")
+                                .font(.subheadline)
+                                .foregroundColor(.green.opacity(0.7))
+                            
+                            Button(action: { showShareSheet = true }) {
+                                HStack {
+                                    Image(systemName: "square.and.arrow.up")
+                                    Text("Share Ringtone")
+                                }
+                                .font(.headline)
+                                .foregroundColor(.black)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.green)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            
+                            Button(action: { exportedFileURL = nil }) {
+                                Text("Done")
+                                    .font(.subheadline)
+                                    .foregroundColor(.green)
+                                    .padding(.top, 8)
+                            }
+                        }
+                        .padding(30)
+                        .background(Color.black)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.green, lineWidth: 2)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .padding(.horizontal, 40)
+                        .shadow(color: .green.opacity(0.3), radius: 20)
+                    }
+                    .transition(.opacity)
+                    .zIndex(1000)
                 }
                 
                 // Custom number pad overlay
