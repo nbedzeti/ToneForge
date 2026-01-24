@@ -61,18 +61,30 @@ class AudioProcessor {
         
         try compositionTrack.insertTimeRange(timeRange, of: assetTrack, at: .zero)
         
+        // Calculate final volume
+        var finalVolume = effects.volumeBoost
+        
+        // If normalize is enabled, analyze and adjust volume
+        if effects.normalizeAudio {
+            print("🔊 Analyzing audio for normalization...")
+            let peakLevel = try await analyzePeakLevel(asset: asset, timeRange: timeRange)
+            let normalizeBoost = calculateNormalizeBoost(peakLevel: peakLevel)
+            finalVolume *= normalizeBoost
+            print("📊 Peak level: \(peakLevel)dB, Normalize boost: \(normalizeBoost)x, Final volume: \(finalVolume)x")
+        }
+        
         // Apply audio effects
         let audioMix = AVMutableAudioMix()
         let audioMixInputParameters = AVMutableAudioMixInputParameters(track: compositionTrack)
         
-        // Apply volume boost
-        audioMixInputParameters.setVolume(effects.volumeBoost, at: .zero)
+        // Apply volume (with normalization if enabled)
+        audioMixInputParameters.setVolume(finalVolume, at: .zero)
         
         // Apply fade in
         if effects.fadeInDuration > 0 {
             audioMixInputParameters.setVolumeRamp(
                 fromStartVolume: 0.0,
-                toEndVolume: effects.volumeBoost,
+                toEndVolume: finalVolume,
                 timeRange: CMTimeRange(
                     start: .zero,
                     duration: CMTime(seconds: effects.fadeInDuration, preferredTimescale: 600)
@@ -86,7 +98,7 @@ class AudioProcessor {
             let fadeOutStart = duration - effects.fadeOutDuration
             
             audioMixInputParameters.setVolumeRamp(
-                fromStartVolume: effects.volumeBoost,
+                fromStartVolume: finalVolume,
                 toEndVolume: 0.0,
                 timeRange: CMTimeRange(
                     start: CMTime(seconds: fadeOutStart, preferredTimescale: 600),
@@ -126,6 +138,86 @@ class AudioProcessor {
     }
     
     // MARK: - Audio Analysis
+    
+    /// Analyze peak audio level in the specified time range
+    private static func analyzePeakLevel(asset: AVAsset, timeRange: CMTimeRange) async throws -> Float {
+        // Get audio track
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        guard let audioTrack = audioTracks.first else {
+            throw NSError(domain: "AudioProcessor", code: -5, userInfo: [NSLocalizedDescriptionKey: "No audio track found for analysis"])
+        }
+        
+        // Create asset reader
+        let assetReader = try AVAssetReader(asset: asset)
+        
+        let outputSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsNonInterleaved: false
+        ]
+        
+        let assetReaderOutput = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: outputSettings)
+        assetReaderOutput.audioTimePitchAlgorithm = .spectral
+        
+        assetReader.add(assetReaderOutput)
+        assetReader.timeRange = timeRange
+        
+        guard assetReader.startReading() else {
+            throw NSError(domain: "AudioProcessor", code: -6, userInfo: [NSLocalizedDescriptionKey: "Failed to start reading audio"])
+        }
+        
+        var maxSample: Float = 0.0
+        
+        // Read audio samples and find peak
+        while let sampleBuffer = assetReaderOutput.copyNextSampleBuffer() {
+            guard let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+                continue
+            }
+            
+            let length = CMBlockBufferGetDataLength(blockBuffer)
+            var data = Data(count: length)
+            
+            data.withUnsafeMutableBytes { (bytes: UnsafeMutableRawBufferPointer) in
+                CMBlockBufferCopyDataBytes(blockBuffer, atOffset: 0, dataLength: length, destination: bytes.baseAddress!)
+            }
+            
+            // Convert to Int16 samples and find peak
+            data.withUnsafeBytes { (samples: UnsafeRawBufferPointer) in
+                let int16Samples = samples.bindMemory(to: Int16.self)
+                for sample in int16Samples {
+                    let normalizedSample = abs(Float(sample)) / Float(Int16.max)
+                    maxSample = max(maxSample, normalizedSample)
+                }
+            }
+        }
+        
+        // Convert to dB
+        let peakDB = maxSample > 0 ? 20 * log10(maxSample) : -96.0
+        
+        return peakDB
+    }
+    
+    /// Calculate volume boost needed to normalize audio to target level
+    private static func calculateNormalizeBoost(peakLevel: Float, targetLevel: Float = -1.0) -> Float {
+        // If audio is already at or above target, don't boost
+        guard peakLevel < targetLevel else {
+            return 1.0
+        }
+        
+        // Calculate boost needed in dB
+        let boostDB = targetLevel - peakLevel
+        
+        // Convert dB to linear gain
+        // Limit boost to reasonable range (max +12dB to avoid distortion)
+        let limitedBoostDB = min(boostDB, 12.0)
+        let linearGain = pow(10.0, limitedBoostDB / 20.0)
+        
+        return linearGain
+    }
+    
+    // MARK: - Audio Analysis (Legacy)
     
     /// Analyze audio to suggest optimal volume boost
     static func analyzeAudioLevels(asset: AVAsset) async throws -> Float {
