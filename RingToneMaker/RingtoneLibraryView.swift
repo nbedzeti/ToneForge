@@ -14,8 +14,6 @@ struct RingtoneLibraryView: View {
     let onUpgrade: () -> Void
     
     @State private var selectedFilter: FilterOption = .all
-    @State private var showingShareSheet = false
-    @State private var shareURLs: [URL] = []
     @State private var searchText = ""
     
     enum FilterOption: String, CaseIterable {
@@ -50,9 +48,6 @@ struct RingtoneLibraryView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showingShareSheet) {
-            ShareSheet(items: shareURLs)
-        }
     }
     
     // MARK: - Premium Content
@@ -105,8 +100,34 @@ struct RingtoneLibraryView: View {
                                     library.toggleFavorite(ringtone)
                                 },
                                 onShare: {
-                                    shareURLs = [ringtone.fileURL]
-                                    showingShareSheet = true
+                                    print("📤 Sharing ringtone: \(ringtone.name)")
+                                    print("📂 File URL: \(ringtone.fileURL)")
+                                    
+                                    // Use UIActivityViewController directly
+                                    let activityVC = UIActivityViewController(
+                                        activityItems: [ringtone.fileURL],
+                                        applicationActivities: nil
+                                    )
+                                    
+                                    // Get the root view controller
+                                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                                       let rootVC = windowScene.windows.first?.rootViewController {
+                                        
+                                        // Find the topmost presented view controller
+                                        var topVC = rootVC
+                                        while let presented = topVC.presentedViewController {
+                                            topVC = presented
+                                        }
+                                        
+                                        // For iPad: set popover presentation
+                                        if let popover = activityVC.popoverPresentationController {
+                                            popover.sourceView = topVC.view
+                                            popover.sourceRect = CGRect(x: topVC.view.bounds.midX, y: topVC.view.bounds.midY, width: 0, height: 0)
+                                            popover.permittedArrowDirections = []
+                                        }
+                                        
+                                        topVC.present(activityVC, animated: true)
+                                    }
                                 },
                                 onDelete: {
                                     library.deleteRingtone(ringtone)
