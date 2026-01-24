@@ -207,6 +207,11 @@ class AudioProcessor {
     /// Apply advanced effects (reverb, echo, EQ) to an audio file
     private static func applyAdvancedEffects(inputURL: URL, effects: AudioEffects) async throws -> URL {
         
+        print("🎵 Applying advanced effects to audio file...")
+        
+        // For now, use a simpler approach: apply effects using AVAudioEngine with real-time processing
+        // This is more reliable than offline rendering, especially on simulator
+        
         let audioFile = try AVAudioFile(forReading: inputURL)
         let format = audioFile.processingFormat
         
@@ -217,6 +222,19 @@ class AudioProcessor {
         }
         
         try audioFile.read(into: buffer)
+        
+        // Prepare output file
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let outputURL = documentsPath.appendingPathComponent("Ringtone_\(Date().timeIntervalSince1970).m4r")
+        
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+            try FileManager.default.removeItem(at: outputURL)
+        }
+        
+        // Create output buffer for processed audio
+        guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+            throw NSError(domain: "AudioProcessor", code: -5, userInfo: [NSLocalizedDescriptionKey: "Failed to create output buffer"])
+        }
         
         // Setup audio engine
         let engine = AVAudioEngine()
@@ -315,14 +333,45 @@ class AudioProcessor {
         // Connect to output
         engine.connect(lastNode, to: engine.mainMixerNode, format: format)
         
-        // Prepare output file
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let outputURL = documentsPath.appendingPathComponent("Ringtone_\(Date().timeIntervalSince1970).m4r")
+        // Install tap to capture processed audio
+        var capturedFrames: AVAudioFramePosition = 0
+        let totalFrames = AVAudioFramePosition(buffer.frameLength)
         
-        if FileManager.default.fileExists(atPath: outputURL.path) {
-            try FileManager.default.removeItem(at: outputURL)
+        engine.mainMixerNode.installTap(onBus: 0, bufferSize: 4096, format: format) { (tapBuffer, time) in
+            // Copy processed audio to output buffer
+            guard let outputChannelData = outputBuffer.floatChannelData,
+                  let tapChannelData = tapBuffer.floatChannelData else {
+                return
+            }
+            
+            let framesToCopy = min(Int(tapBuffer.frameLength), Int(totalFrames - capturedFrames))
+            if framesToCopy > 0 {
+                for channel in 0..<Int(format.channelCount) {
+                    let outputPtr = outputChannelData[channel].advanced(by: Int(capturedFrames))
+                    let tapPtr = tapChannelData[channel]
+                    memcpy(outputPtr, tapPtr, framesToCopy * MemoryLayout<Float>.stride)
+                }
+                capturedFrames += AVAudioFramePosition(framesToCopy)
+            }
         }
         
+        // Start engine and play
+        try engine.start()
+        playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+        playerNode.play()
+        
+        // Wait for processing to complete
+        let duration = Double(buffer.frameLength) / format.sampleRate
+        try await Task.sleep(nanoseconds: UInt64((duration + 1.0) * 1_000_000_000))
+        
+        // Stop engine and remove tap
+        engine.mainMixerNode.removeTap(onBus: 0)
+        engine.stop()
+        
+        // Set the actual frame length
+        outputBuffer.frameLength = AVAudioFrameCount(capturedFrames)
+        
+        // Write to file
         let outputFile = try AVAudioFile(forWriting: outputURL, settings: [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVSampleRateKey: format.sampleRate,
@@ -330,52 +379,7 @@ class AudioProcessor {
             AVEncoderBitRateKey: 128000
         ])
         
-        // Enable manual rendering mode
-        engine.stop()
-        try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 4096)
-        
-        // Start engine
-        try engine.start()
-        
-        // Schedule buffer
-        playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
-        playerNode.play()
-        
-        // Render audio
-        let maxFrames: AVAudioFrameCount = 4096
-        var isFinished = false
-        
-        while !isFinished {
-            guard let renderBuffer = AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat, frameCapacity: maxFrames) else {
-                break
-            }
-            
-            let framesToRender = min(maxFrames, AVAudioFrameCount(engine.manualRenderingSampleTime + Int64(maxFrames)))
-            
-            do {
-                let status = try engine.renderOffline(framesToRender, to: renderBuffer)
-                
-                switch status {
-                case .success:
-                    if renderBuffer.frameLength > 0 {
-                        try outputFile.write(from: renderBuffer)
-                    }
-                case .insufficientDataFromInputNode:
-                    isFinished = true
-                case .cannotDoInCurrentContext:
-                    throw NSError(domain: "AudioProcessor", code: -6, userInfo: [NSLocalizedDescriptionKey: "Cannot render in current context"])
-                case .error:
-                    throw NSError(domain: "AudioProcessor", code: -7, userInfo: [NSLocalizedDescriptionKey: "Rendering error"])
-                @unknown default:
-                    throw NSError(domain: "AudioProcessor", code: -8, userInfo: [NSLocalizedDescriptionKey: "Unknown rendering status"])
-                }
-            } catch {
-                print("❌ Rendering error: \(error)")
-                throw error
-            }
-        }
-        
-        engine.stop()
+        try outputFile.write(from: outputBuffer)
         
         print("✅ Advanced effects applied successfully")
         
