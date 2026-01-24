@@ -221,6 +221,15 @@
 	</array>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>This identifier will be used to deliver personalized ads to you.</string>
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>
