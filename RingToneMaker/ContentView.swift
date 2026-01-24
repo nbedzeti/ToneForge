@@ -78,6 +78,99 @@ struct ContentView: View {
                 // SCREEN 1: Selection
                 selectionScreen
             }
+            
+            // Custom Save to Library Dialog
+            if showingSaveDialog {
+                ZStack {
+                    Color.black.opacity(0.7)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            showingSaveDialog = false
+                        }
+                    
+                    VStack(spacing: 20) {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 50))
+                            .foregroundColor(.green)
+                        
+                        Text("Save to Library")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.green)
+                        
+                        Text("Give your ringtone a name")
+                            .font(.subheadline)
+                            .foregroundColor(.green.opacity(0.7))
+                        
+                        TextField("Ringtone Name", text: $ringtoneName)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                            .padding()
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                            )
+                        
+                        HStack(spacing: 12) {
+                            Button(action: {
+                                showingSaveDialog = false
+                            }) {
+                                Text("Cancel")
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.green.opacity(0.1))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.green, lineWidth: 1)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            
+                            Button(action: {
+                                if let url = exportedFileURL {
+                                    do {
+                                        try ringtoneLibrary.saveRingtone(from: url, name: ringtoneName)
+                                        alertTitle = "Success"
+                                        alertMessage = "Ringtone saved to library!"
+                                        showingAlert = true
+                                    } catch {
+                                        alertTitle = "Error"
+                                        alertMessage = "Failed to save: \(error.localizedDescription)"
+                                        showingAlert = true
+                                    }
+                                }
+                                showingSaveDialog = false
+                            }) {
+                                Text("Save")
+                                    .font(.headline)
+                                    .foregroundColor(.black)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.green)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            .disabled(ringtoneName.isEmpty)
+                            .opacity(ringtoneName.isEmpty ? 0.5 : 1.0)
+                        }
+                    }
+                    .padding(30)
+                    .background(Color.black)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(Color.green, lineWidth: 2)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .frame(maxWidth: 340)
+                    .padding(.horizontal, 40)
+                    .shadow(color: .green.opacity(0.3), radius: 20)
+                }
+                .transition(.opacity)
+                .zIndex(2000)
+            }
         }
         .sheet(isPresented: $showingMediaPicker) {
             MediaPickerView(
@@ -116,29 +209,6 @@ struct ContentView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(alertMessage)
-        }
-        .alert("Save to Library", isPresented: $showingSaveDialog) {
-            TextField("Ringtone Name", text: $ringtoneName)
-            Button("Save") {
-                if let url = exportedFileURL {
-                    do {
-                        try ringtoneLibrary.saveRingtone(from: url, name: ringtoneName)
-                        alertTitle = "Success"
-                        alertMessage = "Ringtone saved to library!"
-                        showingAlert = true
-                    } catch {
-                        alertTitle = "Error"
-                        alertMessage = "Failed to save: \(error.localizedDescription)"
-                        showingAlert = true
-                    }
-                }
-                showingSaveDialog = false
-            }
-            Button("Cancel", role: .cancel) {
-                showingSaveDialog = false
-            }
-        } message: {
-            Text("Give your ringtone a name")
         }
         .onDisappear {
             stopPreview()
