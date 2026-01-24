@@ -446,13 +446,21 @@ struct ContentView: View {
                                             }
                                         }
                                         
-                                        // Preview with effects (Premium only)
-                                        if purchaseManager.isPremium && hasEffectsEnabled {
+                                        // Preview with effects (Premium only) - Always visible
+                                        if purchaseManager.isPremium {
                                             Button(action: {
-                                                if isPlaying {
-                                                    stopPreview()
+                                                if hasEffectsEnabled {
+                                                    // Effects enabled: preview with effects
+                                                    if isPlaying {
+                                                        stopPreview()
+                                                    } else {
+                                                        playPreviewWithEffects()
+                                                    }
                                                 } else {
-                                                    playPreviewWithEffects()
+                                                    // No effects: scroll to and expand Audio Effects panel
+                                                    withAnimation {
+                                                        showingAudioEffects = true
+                                                    }
                                                 }
                                             }) {
                                                 HStack(spacing: 6) {
@@ -462,20 +470,25 @@ struct ContentView: View {
                                                             .scaleEffect(0.8)
                                                         Text("Processing...")
                                                             .font(.caption)
-                                                    } else {
+                                                    } else if hasEffectsEnabled {
                                                         Image(systemName: isPlaying ? "stop.circle.fill" : "waveform.circle.fill")
                                                             .font(.body)
                                                         Text(isPlaying ? "Stop" : "Preview with Effects")
                                                             .font(.caption)
+                                                    } else {
+                                                        Image(systemName: "wand.and.stars")
+                                                            .font(.body)
+                                                        Text("Apply Effects to Preview")
+                                                            .font(.caption)
                                                     }
                                                 }
-                                                .foregroundColor(.purple)
+                                                .foregroundColor(hasEffectsEnabled ? .purple : .purple.opacity(0.7))
                                                 .frame(maxWidth: .infinity)
                                                 .padding(.vertical, 10)
-                                                .background(Color.purple.opacity(0.1))
+                                                .background(hasEffectsEnabled ? Color.purple.opacity(0.1) : Color.purple.opacity(0.05))
                                                 .overlay(
                                                     RoundedRectangle(cornerRadius: 12)
-                                                        .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+                                                        .stroke(hasEffectsEnabled ? Color.purple.opacity(0.3) : Color.purple.opacity(0.2), lineWidth: 1)
                                                 )
                                             }
                                             .disabled(isPreviewingEffects)
