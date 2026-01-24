@@ -46,6 +46,14 @@ struct ContentView: View {
     @State private var showingNumberPad = false
     @State private var editingStartTime = false
     
+    // Premium features
+    @State private var audioEffects = AudioProcessor.AudioEffects()
+    @State private var showingAudioEffects = false
+    @State private var ringtoneLibrary = RingtoneLibrary()
+    @State private var showingLibrary = false
+    @State private var showingSaveDialog = false
+    @State private var ringtoneName = ""
+    
     private let maxRingtoneDuration: Double = 30
     
     var body: some View {
@@ -91,6 +99,13 @@ struct ContentView: View {
         .sheet(isPresented: $showingPremiumView) {
             PurchaseView(purchaseManager: purchaseManager)
         }
+        .sheet(isPresented: $showingLibrary) {
+            RingtoneLibraryView(
+                library: ringtoneLibrary,
+                isPremium: purchaseManager.isPremium,
+                onUpgrade: { showingPremiumView = true }
+            )
+        }
         .sheet(isPresented: $showShareSheet) {
             if let url = exportedFileURL {
                 ShareSheet(items: [url])
@@ -100,6 +115,17 @@ struct ContentView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(alertMessage)
+        }
+        .alert("Save to Library", isPresented: $showingSaveDialog) {
+            TextField("Ringtone Name", text: $ringtoneName)
+            Button("Save") {
+                if let url = exportedFileURL {
+                    try? ringtoneLibrary.saveRingtone(from: url, name: ringtoneName)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Give your ringtone a name")
         }
         .onDisappear {
             stopPreview()
@@ -254,6 +280,46 @@ struct ContentView: View {
                             .padding(.horizontal, geometry.size.width * 0.05)
                         }
                         
+                        // Library button (Premium feature)
+                        Button(action: { showingLibrary = true }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "rectangle.stack.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.green)
+                                    .frame(width: 40)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack {
+                                        Text("My Library")
+                                            .font(.headline)
+                                            .foregroundColor(.green)
+                                        if !purchaseManager.isPremium {
+                                            Image(systemName: "crown.fill")
+                                                .font(.caption)
+                                                .foregroundColor(.yellow)
+                                        }
+                                    }
+                                    Text("\(ringtoneLibrary.ringtones.count) saved ringtones")
+                                        .font(.caption)
+                                        .foregroundColor(.green.opacity(0.6))
+                                }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.green.opacity(0.5))
+                            }
+                            .padding(.vertical, 12)
+                            .padding(.horizontal, 16)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.green.opacity(0.1))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        .padding(.horizontal, geometry.size.width * 0.05)
+                        
                         Spacer(minLength: 20)
                     }
                     .frame(minHeight: geometry.size.height)
@@ -380,6 +446,15 @@ struct ContentView: View {
                                 }
                                 .padding(.horizontal, geometry.size.width * 0.05)
                             }
+                            
+                            // Audio Effects (Premium feature)
+                            AudioEffectsView(
+                                effects: $audioEffects,
+                                isExpanded: $showingAudioEffects,
+                                isPremium: purchaseManager.isPremium,
+                                onUpgrade: { showingPremiumView = true }
+                            )
+                            .padding(.horizontal, geometry.size.width * 0.05)
                             
                             // Time controls
                             VStack(spacing: 8) {
@@ -539,6 +614,28 @@ struct ContentView: View {
                                 .padding()
                                 .background(Color.green)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            
+                            if purchaseManager.isPremium {
+                                Button(action: {
+                                    ringtoneName = selectedSongTitle
+                                    showingSaveDialog = true
+                                }) {
+                                    HStack {
+                                        Image(systemName: "folder.badge.plus")
+                                        Text("Save to Library")
+                                    }
+                                    .font(.headline)
+                                    .foregroundColor(.green)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.green.opacity(0.1))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.green, lineWidth: 2)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
                             }
                             
                             Button(action: { exportedFileURL = nil }) {
@@ -854,6 +951,17 @@ struct ContentView: View {
     }
     
     private func exportRingtone(asset: AVAsset) async throws -> URL {
+        // Use premium audio processor if premium and effects are enabled
+        if purchaseManager.isPremium && (audioEffects.fadeInDuration > 0 || audioEffects.fadeOutDuration > 0 || audioEffects.volumeBoost != 1.0) {
+            return try await AudioProcessor.exportRingtoneWithEffects(
+                asset: asset,
+                startTime: startTime,
+                endTime: endTime,
+                effects: audioEffects
+            )
+        }
+        
+        // Standard export (free users)
         let startCMTime = CMTime(seconds: startTime, preferredTimescale: 600)
         let endCMTime = CMTime(seconds: endTime, preferredTimescale: 600)
         let timeRange = CMTimeRange(start: startCMTime, end: endCMTime)
