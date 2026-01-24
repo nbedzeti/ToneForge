@@ -1135,6 +1135,17 @@ struct MediaPickerView: UIViewControllerRepresentable {
         picker.view.tintColor = UIColor(red: 0, green: 1, blue: 0, alpha: 1) // Green tint
         picker.overrideUserInterfaceStyle = .dark
         
+        // Customize navigation bar appearance
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor.black
+        appearance.titleTextAttributes = [.foregroundColor: UIColor(red: 0, green: 1, blue: 0, alpha: 1)]
+        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor(red: 0, green: 1, blue: 0, alpha: 1)]
+        
+        picker.navigationController?.navigationBar.standardAppearance = appearance
+        picker.navigationController?.navigationBar.scrollEdgeAppearance = appearance
+        picker.navigationController?.navigationBar.compactAppearance = appearance
+        
         return picker
     }
     
@@ -1185,6 +1196,17 @@ struct DocumentPickerView: UIViewControllerRepresentable {
         // Apply dark theme to match app
         picker.view.tintColor = UIColor(red: 0, green: 1, blue: 0, alpha: 1) // Green tint
         picker.overrideUserInterfaceStyle = .dark
+        
+        // Customize navigation bar appearance
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor.black
+        appearance.titleTextAttributes = [.foregroundColor: UIColor(red: 0, green: 1, blue: 0, alpha: 1)]
+        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor(red: 0, green: 1, blue: 0, alpha: 1)]
+        
+        picker.navigationController?.navigationBar.standardAppearance = appearance
+        picker.navigationController?.navigationBar.scrollEdgeAppearance = appearance
+        picker.navigationController?.navigationBar.compactAppearance = appearance
         
         return picker
     }

@@ -18,6 +18,9 @@ struct RingToneMakerApp: App {
     @State private var purchaseManager = PurchaseManager()
     
     init() {
+        // Configure global appearance for system sheets
+        configureAppearance()
+        
         #if canImport(GoogleMobileAds)
         // Initialize Google Mobile Ads SDK
         GADMobileAds.sharedInstance().start(completionHandler: { status in
@@ -43,6 +46,32 @@ struct RingToneMakerApp: App {
         
         // Configure audio session for playback and recording
         configureAudioSession()
+    }
+    
+    private func configureAppearance() {
+        // Set global tint color to green
+        UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = UIColor(red: 0, green: 1, blue: 0, alpha: 1)
+        
+        // Configure navigation bar appearance globally
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor.black
+        appearance.titleTextAttributes = [.foregroundColor: UIColor(red: 0, green: 1, blue: 0, alpha: 1)]
+        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor(red: 0, green: 1, blue: 0, alpha: 1)]
+        
+        UINavigationBar.appearance().standardAppearance = appearance
+        UINavigationBar.appearance().scrollEdgeAppearance = appearance
+        UINavigationBar.appearance().compactAppearance = appearance
+        UINavigationBar.appearance().tintColor = UIColor(red: 0, green: 1, blue: 0, alpha: 1)
+        
+        // Configure toolbar appearance
+        let toolbarAppearance = UIToolbarAppearance()
+        toolbarAppearance.configureWithOpaqueBackground()
+        toolbarAppearance.backgroundColor = UIColor.black
+        
+        UIToolbar.appearance().standardAppearance = toolbarAppearance
+        UIToolbar.appearance().compactAppearance = toolbarAppearance
+        UIToolbar.appearance().tintColor = UIColor(red: 0, green: 1, blue: 0, alpha: 1)
     }
     
     var body: some Scene {
