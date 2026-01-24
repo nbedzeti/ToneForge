@@ -144,11 +144,119 @@ struct AudioEffectsView: View {
             Divider()
                 .background(Color.green.opacity(0.3))
             
+            // Reverb
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle(isOn: $effects.reverbEnabled) {
+                    HStack {
+                        Image(systemName: "waveform.circle")
+                            .foregroundColor(.green)
+                        Text("Reverb")
+                            .font(.subheadline)
+                            .foregroundColor(.green)
+                    }
+                }
+                .tint(.green)
+                
+                if effects.reverbEnabled {
+                    VStack(spacing: 8) {
+                        Picker("Preset", selection: $effects.reverbPreset) {
+                            ForEach(AudioProcessor.AudioEffects.ReverbPreset.allCases, id: \.self) { preset in
+                                Text(preset.rawValue).tag(preset)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(.green)
+                        
+                        HStack {
+                            Text("Mix")
+                                .font(.caption)
+                                .foregroundColor(.green.opacity(0.7))
+                            Spacer()
+                            Text("\(Int(effects.reverbMix))%")
+                                .font(.caption)
+                                .foregroundColor(.green.opacity(0.7))
+                        }
+                        
+                        Slider(value: $effects.reverbMix, in: 0...100, step: 5)
+                            .tint(.green)
+                    }
+                    .padding(.leading, 8)
+                }
+            }
+            
+            Divider()
+                .background(Color.green.opacity(0.3))
+            
+            // Echo/Delay
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle(isOn: $effects.echoEnabled) {
+                    HStack {
+                        Image(systemName: "repeat.circle")
+                            .foregroundColor(.green)
+                        Text("Echo")
+                            .font(.subheadline)
+                            .foregroundColor(.green)
+                    }
+                }
+                .tint(.green)
+                
+                if effects.echoEnabled {
+                    VStack(spacing: 8) {
+                        HStack {
+                            Text("Delay")
+                                .font(.caption)
+                                .foregroundColor(.green.opacity(0.7))
+                            Spacer()
+                            Text("\(effects.echoDelay, specifier: "%.2f")s")
+                                .font(.caption)
+                                .foregroundColor(.green.opacity(0.7))
+                        }
+                        
+                        Slider(value: $effects.echoDelay, in: 0.1...0.5, step: 0.05)
+                            .tint(.green)
+                        
+                        HStack {
+                            Text("Feedback")
+                                .font(.caption)
+                                .foregroundColor(.green.opacity(0.7))
+                            Spacer()
+                            Text("\(Int(effects.echoFeedback))%")
+                                .font(.caption)
+                                .foregroundColor(.green.opacity(0.7))
+                        }
+                        
+                        Slider(value: $effects.echoFeedback, in: 0...80, step: 5)
+                            .tint(.green)
+                        
+                        HStack {
+                            Text("Mix")
+                                .font(.caption)
+                                .foregroundColor(.green.opacity(0.7))
+                            Spacer()
+                            Text("\(Int(effects.echoMix))%")
+                                .font(.caption)
+                                .foregroundColor(.green.opacity(0.7))
+                        }
+                        
+                        Slider(value: $effects.echoMix, in: 0...100, step: 5)
+                            .tint(.green)
+                    }
+                    .padding(.leading, 8)
+                }
+            }
+            
+            Divider()
+                .background(Color.green.opacity(0.3))
+            
             // Equalizer Preset
             VStack(alignment: .leading, spacing: 8) {
-                Text("Equalizer")
-                    .font(.subheadline)
-                    .foregroundColor(.green)
+                HStack {
+                    Image(systemName: "slider.horizontal.3")
+                        .foregroundColor(.green)
+                    Text("Equalizer")
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                }
                 
                 Picker("Equalizer", selection: $effects.equalizerPreset) {
                     ForEach(AudioProcessor.AudioEffects.EqualizerPreset.allCases, id: \.self) { preset in
@@ -196,9 +304,11 @@ struct AudioEffectsView: View {
             
             VStack(alignment: .leading, spacing: 6) {
                 FeatureItem(icon: "waveform", text: "Fade In/Out")
-                FeatureItem(icon: "speaker.wave.3", text: "Volume Boost")
-                FeatureItem(icon: "slider.horizontal.3", text: "Equalizer Presets")
-                FeatureItem(icon: "chart.bar", text: "Audio Normalization")
+                FeatureItem(icon: "speaker.wave.3", text: "Volume Boost & Normalize")
+                FeatureItem(icon: "waveform.circle", text: "Reverb (5 presets)")
+                FeatureItem(icon: "repeat.circle", text: "Echo/Delay")
+                FeatureItem(icon: "slider.horizontal.3", text: "EQ Presets")
+                FeatureItem(icon: "rectangle.stack", text: "Ringtone Library")
             }
             .padding(.vertical, 8)
             

@@ -745,6 +745,8 @@ struct ContentView: View {
                audioEffects.fadeOutDuration > 0 ||
                audioEffects.volumeBoost != 1.0 ||
                audioEffects.normalizeAudio ||
+               audioEffects.reverbEnabled ||
+               audioEffects.echoEnabled ||
                audioEffects.equalizerPreset != .none
     }
     

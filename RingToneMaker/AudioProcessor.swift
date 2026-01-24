@@ -14,11 +14,33 @@ class AudioProcessor {
     // MARK: - Audio Effects Settings
     
     struct AudioEffects {
+        // Volume & Dynamics
         var fadeInDuration: Double = 0.0      // 0-3 seconds
         var fadeOutDuration: Double = 0.0     // 0-3 seconds
         var volumeBoost: Float = 1.0          // 0.5-2.0 (50%-200%)
         var normalizeAudio: Bool = false      // Normalize volume levels
+        
+        // Reverb
+        var reverbEnabled: Bool = false
+        var reverbPreset: ReverbPreset = .smallRoom
+        var reverbMix: Float = 30.0           // 0-100%
+        
+        // Echo/Delay
+        var echoEnabled: Bool = false
+        var echoDelay: Double = 0.3           // 0.1-0.5 seconds
+        var echoFeedback: Float = 40.0        // 0-80%
+        var echoMix: Float = 30.0             // 0-100%
+        
+        // Equalizer
         var equalizerPreset: EqualizerPreset = .none
+        
+        enum ReverbPreset: String, CaseIterable {
+            case smallRoom = "Small Room"
+            case mediumRoom = "Medium Room"
+            case largeRoom = "Large Room"
+            case cathedral = "Cathedral"
+            case plate = "Plate"
+        }
         
         enum EqualizerPreset: String, CaseIterable {
             case none = "None"
@@ -33,6 +55,29 @@ class AudioProcessor {
     
     /// Export ringtone with premium audio effects applied
     static func exportRingtoneWithEffects(
+        asset: AVAsset,
+        startTime: Double,
+        endTime: Double,
+        effects: AudioEffects
+    ) async throws -> URL {
+        
+        // Check if we need advanced effects (Reverb, Echo, EQ)
+        let needsAdvancedEffects = effects.reverbEnabled || effects.echoEnabled || effects.equalizerPreset != .none
+        
+        if needsAdvancedEffects {
+            print("🎵 Applying advanced effects (Reverb/Echo/EQ)...")
+            // Use two-pass approach: basic effects first, then advanced effects
+            return try await exportWithAdvancedEffects(asset: asset, startTime: startTime, endTime: endTime, effects: effects)
+        } else {
+            // Use simple AVAudioMix for basic effects (faster)
+            return try await exportWithBasicEffects(asset: asset, startTime: startTime, endTime: endTime, effects: effects)
+        }
+    }
+    
+    // MARK: - Basic Export
+    
+    /// Export with basic effects using AVAudioMix (fade, volume, normalize)
+    private static func exportWithBasicEffects(
         asset: AVAsset,
         startTime: Double,
         endTime: Double,
@@ -137,6 +182,206 @@ class AudioProcessor {
         }
     }
     
+    // MARK: - Advanced Export
+    
+    /// Export with advanced effects (reverb, echo, EQ) - two-pass approach
+    private static func exportWithAdvancedEffects(
+        asset: AVAsset,
+        startTime: Double,
+        endTime: Double,
+        effects: AudioEffects
+    ) async throws -> URL {
+        
+        // Pass 1: Export with basic effects to temp file
+        let tempURL = try await exportWithBasicEffects(asset: asset, startTime: startTime, endTime: endTime, effects: effects)
+        
+        // Pass 2: Apply advanced effects using AVAudioEngine
+        let finalURL = try await applyAdvancedEffects(inputURL: tempURL, effects: effects)
+        
+        // Clean up temp file
+        try? FileManager.default.removeItem(at: tempURL)
+        
+        return finalURL
+    }
+    
+    /// Apply advanced effects (reverb, echo, EQ) to an audio file
+    private static func applyAdvancedEffects(inputURL: URL, effects: AudioEffects) async throws -> URL {
+        
+        let audioFile = try AVAudioFile(forReading: inputURL)
+        let format = audioFile.processingFormat
+        
+        // Read entire file into buffer
+        let frameCount = AVAudioFrameCount(audioFile.length)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+            throw NSError(domain: "AudioProcessor", code: -5, userInfo: [NSLocalizedDescriptionKey: "Failed to create buffer"])
+        }
+        
+        try audioFile.read(into: buffer)
+        
+        // Setup audio engine
+        let engine = AVAudioEngine()
+        let playerNode = AVAudioPlayerNode()
+        engine.attach(playerNode)
+        
+        var lastNode: AVAudioNode = playerNode
+        
+        // Add Reverb
+        if effects.reverbEnabled {
+            print("✨ Adding reverb: \(effects.reverbPreset.rawValue) at \(effects.reverbMix)%")
+            let reverbNode = AVAudioUnitReverb()
+            
+            switch effects.reverbPreset {
+            case .smallRoom:
+                reverbNode.loadFactoryPreset(.smallRoom)
+            case .mediumRoom:
+                reverbNode.loadFactoryPreset(.mediumRoom)
+            case .largeRoom:
+                reverbNode.loadFactoryPreset(.largeRoom)
+            case .cathedral:
+                reverbNode.loadFactoryPreset(.cathedral)
+            case .plate:
+                reverbNode.loadFactoryPreset(.plate)
+            }
+            
+            reverbNode.wetDryMix = effects.reverbMix
+            engine.attach(reverbNode)
+            engine.connect(lastNode, to: reverbNode, format: format)
+            lastNode = reverbNode
+        }
+        
+        // Add Echo/Delay
+        if effects.echoEnabled {
+            print("🔁 Adding echo: \(effects.echoDelay)s delay, \(effects.echoFeedback)% feedback")
+            let delayNode = AVAudioUnitDelay()
+            delayNode.delayTime = effects.echoDelay
+            delayNode.feedback = effects.echoFeedback
+            delayNode.wetDryMix = effects.echoMix
+            engine.attach(delayNode)
+            engine.connect(lastNode, to: delayNode, format: format)
+            lastNode = delayNode
+        }
+        
+        // Add EQ
+        if effects.equalizerPreset != .none {
+            print("🎚️ Adding EQ: \(effects.equalizerPreset.rawValue)")
+            let eqNode = AVAudioUnitEQ(numberOfBands: 3)
+            
+            // Configure EQ bands
+            let lowBand = eqNode.bands[0]
+            lowBand.filterType = .lowShelf
+            lowBand.frequency = 100
+            lowBand.bandwidth = 1.0
+            lowBand.bypass = false
+            
+            let midBand = eqNode.bands[1]
+            midBand.filterType = .parametric
+            midBand.frequency = 1000
+            midBand.bandwidth = 1.0
+            midBand.bypass = false
+            
+            let highBand = eqNode.bands[2]
+            highBand.filterType = .highShelf
+            highBand.frequency = 8000
+            highBand.bandwidth = 1.0
+            highBand.bypass = false
+            
+            // Apply preset
+            switch effects.equalizerPreset {
+            case .none:
+                break
+            case .bassBoost:
+                lowBand.gain = 8.0
+                midBand.gain = 0.0
+                highBand.gain = -2.0
+            case .trebleBoost:
+                lowBand.gain = -2.0
+                midBand.gain = 0.0
+                highBand.gain = 8.0
+            case .vocal:
+                lowBand.gain = -3.0
+                midBand.gain = 6.0
+                highBand.gain = 2.0
+            case .balanced:
+                lowBand.gain = 3.0
+                midBand.gain = 0.0
+                highBand.gain = 3.0
+            }
+            
+            engine.attach(eqNode)
+            engine.connect(lastNode, to: eqNode, format: format)
+            lastNode = eqNode
+        }
+        
+        // Connect to output
+        engine.connect(lastNode, to: engine.mainMixerNode, format: format)
+        
+        // Prepare output file
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let outputURL = documentsPath.appendingPathComponent("Ringtone_\(Date().timeIntervalSince1970).m4r")
+        
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+            try FileManager.default.removeItem(at: outputURL)
+        }
+        
+        let outputFile = try AVAudioFile(forWriting: outputURL, settings: [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: format.sampleRate,
+            AVNumberOfChannelsKey: format.channelCount,
+            AVEncoderBitRateKey: 128000
+        ])
+        
+        // Enable manual rendering mode
+        engine.stop()
+        try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 4096)
+        
+        // Start engine
+        try engine.start()
+        
+        // Schedule buffer
+        playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+        playerNode.play()
+        
+        // Render audio
+        let maxFrames: AVAudioFrameCount = 4096
+        var isFinished = false
+        
+        while !isFinished {
+            guard let renderBuffer = AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat, frameCapacity: maxFrames) else {
+                break
+            }
+            
+            let framesToRender = min(maxFrames, AVAudioFrameCount(engine.manualRenderingSampleTime + Int64(maxFrames)))
+            
+            do {
+                let status = try engine.renderOffline(framesToRender, to: renderBuffer)
+                
+                switch status {
+                case .success:
+                    if renderBuffer.frameLength > 0 {
+                        try outputFile.write(from: renderBuffer)
+                    }
+                case .insufficientDataFromInputNode:
+                    isFinished = true
+                case .cannotDoInCurrentContext:
+                    throw NSError(domain: "AudioProcessor", code: -6, userInfo: [NSLocalizedDescriptionKey: "Cannot render in current context"])
+                case .error:
+                    throw NSError(domain: "AudioProcessor", code: -7, userInfo: [NSLocalizedDescriptionKey: "Rendering error"])
+                @unknown default:
+                    throw NSError(domain: "AudioProcessor", code: -8, userInfo: [NSLocalizedDescriptionKey: "Unknown rendering status"])
+                }
+            } catch {
+                print("❌ Rendering error: \(error)")
+                throw error
+            }
+        }
+        
+        engine.stop()
+        
+        print("✅ Advanced effects applied successfully")
+        
+        return outputURL
+    }
+    
     // MARK: - Audio Analysis
     
     /// Analyze peak audio level in the specified time range
@@ -144,7 +389,7 @@ class AudioProcessor {
         // Get audio track
         let audioTracks = try await asset.loadTracks(withMediaType: .audio)
         guard let audioTrack = audioTracks.first else {
-            throw NSError(domain: "AudioProcessor", code: -5, userInfo: [NSLocalizedDescriptionKey: "No audio track found for analysis"])
+            throw NSError(domain: "AudioProcessor", code: -9, userInfo: [NSLocalizedDescriptionKey: "No audio track found for analysis"])
         }
         
         // Create asset reader
@@ -165,7 +410,7 @@ class AudioProcessor {
         assetReader.timeRange = timeRange
         
         guard assetReader.startReading() else {
-            throw NSError(domain: "AudioProcessor", code: -6, userInfo: [NSLocalizedDescriptionKey: "Failed to start reading audio"])
+            throw NSError(domain: "AudioProcessor", code: -10, userInfo: [NSLocalizedDescriptionKey: "Failed to start reading audio"])
         }
         
         var maxSample: Float = 0.0
@@ -215,15 +460,5 @@ class AudioProcessor {
         let linearGain = pow(10.0, limitedBoostDB / 20.0)
         
         return linearGain
-    }
-    
-    // MARK: - Audio Analysis (Legacy)
-    
-    /// Analyze audio to suggest optimal volume boost
-    static func analyzeAudioLevels(asset: AVAsset) async throws -> Float {
-        // This would analyze the audio and return a suggested volume multiplier
-        // For now, return 1.0 (no boost)
-        // In a full implementation, you'd analyze the waveform peaks
-        return 1.0
     }
 }
