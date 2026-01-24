@@ -184,10 +184,10 @@ struct ContentView: View {
                                         .frame(width: 40)
                                     
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Music Library")
+                                        Text("Select from Music")
                                             .font(.headline)
                                             .foregroundColor(.green)
-                                        Text("Select from your songs")
+                                        Text("Choose a song to edit")
                                             .font(.caption)
                                             .foregroundColor(.green.opacity(0.6))
                                     }
@@ -215,10 +215,10 @@ struct ContentView: View {
                                         .frame(width: 40)
                                     
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Browse Files")
+                                        Text("Import Audio File")
                                             .font(.headline)
                                             .foregroundColor(.green)
-                                        Text("Import audio files")
+                                        Text("Browse your files")
                                             .font(.caption)
                                             .foregroundColor(.green.opacity(0.6))
                                     }
@@ -291,7 +291,7 @@ struct ContentView: View {
                                 
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack {
-                                        Text("My Library")
+                                        Text("My Ringtones")
                                             .font(.headline)
                                             .foregroundColor(.green)
                                         if !purchaseManager.isPremium {
@@ -299,8 +299,13 @@ struct ContentView: View {
                                                 .font(.caption)
                                                 .foregroundColor(.yellow)
                                         }
+                                        if ringtoneLibrary.ringtones.count > 0 {
+                                            Text("(\(ringtoneLibrary.ringtones.count))")
+                                                .font(.caption)
+                                                .foregroundColor(.green.opacity(0.7))
+                                        }
                                     }
-                                    Text("\(ringtoneLibrary.ringtones.count) saved ringtones")
+                                    Text("View saved ringtones")
                                         .font(.caption)
                                         .foregroundColor(.green.opacity(0.6))
                                 }
