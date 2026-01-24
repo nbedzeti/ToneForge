@@ -336,8 +336,11 @@ class AudioProcessor {
         // Install tap to capture processed audio
         var capturedFrames: AVAudioFramePosition = 0
         let totalFrames = AVAudioFramePosition(buffer.frameLength)
+        var isCapturing = true
         
         engine.mainMixerNode.installTap(onBus: 0, bufferSize: 4096, format: format) { (tapBuffer, time) in
+            guard isCapturing else { return }
+            
             // Copy processed audio to output buffer
             guard let outputChannelData = outputBuffer.floatChannelData,
                   let tapChannelData = tapBuffer.floatChannelData else {
@@ -357,12 +360,21 @@ class AudioProcessor {
         
         // Start engine and play
         try engine.start()
-        playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+        
+        // Schedule buffer with completion handler
+        playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: {
+            isCapturing = false
+        })
         playerNode.play()
         
-        // Wait for processing to complete
+        // Wait for playback to complete (with timeout)
         let duration = Double(buffer.frameLength) / format.sampleRate
-        try await Task.sleep(nanoseconds: UInt64((duration + 1.0) * 1_000_000_000))
+        let timeout = duration + 2.0 // Add 2 second buffer
+        let startTime = Date()
+        
+        while isCapturing && Date().timeIntervalSince(startTime) < timeout {
+            try await Task.sleep(nanoseconds: 100_000_000) // Check every 0.1 seconds
+        }
         
         // Stop engine and remove tap
         engine.mainMixerNode.removeTap(onBus: 0)
