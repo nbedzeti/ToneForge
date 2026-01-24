@@ -5,17 +5,17 @@
   ],
   "products" : [
     {
-      "displayPrice" : "35.00",
+      "displayPrice" : "24.99",
       "familyShareable" : true,
       "internalID" : "LIFETIME001",
       "localizations" : [
         {
-          "description" : "One-time purchase for unlimited ringtone creations with no ads, forever.",
+          "description" : "One-time purchase for unlimited ringtone creations with premium features, no ads, forever.",
           "displayName" : "Lifetime Premium",
           "locale" : "en_US"
         }
       ],
-      "productID" : "com.yourapp.ringtonemaker.lifetime",
+      "productID" : "com.IceFireSoul.ToneForge.premium.lifetime",
       "referenceName" : "Lifetime Premium",
       "type" : "NonConsumable"
     }
@@ -90,19 +90,19 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "4.99",
+          "displayPrice" : "2.99",
           "familyShareable" : true,
           "groupNumber" : 1,
           "internalID" : "MONTHLY001",
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Monthly subscription for unlimited ringtone creations with no ads.",
+              "description" : "Monthly subscription for unlimited ringtone creations with premium features and no ads.",
               "displayName" : "Monthly Premium",
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.yourapp.ringtonemaker.monthly",
+          "productID" : "com.IceFireSoul.ToneForge.premium.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Monthly Premium",
           "subscriptionGroupID" : "SUB_GROUP_001",
@@ -115,19 +115,19 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "25.00",
+          "displayPrice" : "19.99",
           "familyShareable" : true,
           "groupNumber" : 2,
           "internalID" : "YEARLY001",
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Yearly subscription for unlimited ringtone creations with no ads. Save 58% compared to monthly!",
+              "description" : "Yearly subscription for unlimited ringtone creations with premium features and no ads. Save 44% compared to monthly!",
               "displayName" : "Yearly Premium",
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.yourapp.ringtonemaker.yearly",
+          "productID" : "com.IceFireSoul.ToneForge.premium.yearly",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Yearly Premium",
           "subscriptionGroupID" : "SUB_GROUP_001",
