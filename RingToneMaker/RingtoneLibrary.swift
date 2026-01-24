@@ -57,14 +57,23 @@ class RingtoneLibrary {
     
     /// Save a ringtone to the library
     func saveRingtone(from sourceURL: URL, name: String, tags: [String] = []) throws {
-        // Copy file to library directory
+        // Sanitize name - remove file extensions if present
+        var cleanName = name
+        let extensionsToRemove = [".mp3", ".m4a", ".m4r", ".wav", ".aac"]
+        for ext in extensionsToRemove {
+            if cleanName.lowercased().hasSuffix(ext) {
+                cleanName = String(cleanName.dropLast(ext.count))
+            }
+        }
+        
+        // Copy file to library directory with .m4r extension
         let fileName = "\(UUID().uuidString).m4r"
         let destinationURL = libraryDirectory.appendingPathComponent(fileName)
         
         try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
         
-        // Create ringtone entry
-        let ringtone = SavedRingtone(name: name, fileURL: destinationURL, tags: tags)
+        // Create ringtone entry with clean name
+        let ringtone = SavedRingtone(name: cleanName, fileURL: destinationURL, tags: tags)
         ringtones.append(ringtone)
         
         // Update tags

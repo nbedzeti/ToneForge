@@ -251,10 +251,21 @@ struct RingtoneRow: View {
             
             // Info
             VStack(alignment: .leading, spacing: 4) {
-                Text(ringtone.name)
-                    .font(.subheadline)
-                    .foregroundColor(.green)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(ringtone.name)
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                        .lineLimit(1)
+                    
+                    // Show file format badge
+                    Text("M4R")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Color.green)
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                }
                 
                 HStack(spacing: 8) {
                     Text(ringtone.createdDate, style: .date)

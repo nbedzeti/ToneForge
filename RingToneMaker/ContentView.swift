@@ -121,10 +121,22 @@ struct ContentView: View {
             TextField("Ringtone Name", text: $ringtoneName)
             Button("Save") {
                 if let url = exportedFileURL {
-                    try? ringtoneLibrary.saveRingtone(from: url, name: ringtoneName)
+                    do {
+                        try ringtoneLibrary.saveRingtone(from: url, name: ringtoneName)
+                        alertTitle = "Success"
+                        alertMessage = "Ringtone saved to library!"
+                        showingAlert = true
+                    } catch {
+                        alertTitle = "Error"
+                        alertMessage = "Failed to save: \(error.localizedDescription)"
+                        showingAlert = true
+                    }
                 }
+                showingSaveDialog = false
             }
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) {
+                showingSaveDialog = false
+            }
         } message: {
             Text("Give your ringtone a name")
         }
@@ -674,7 +686,15 @@ struct ContentView: View {
                             
                             if purchaseManager.isPremium {
                                 Button(action: {
-                                    ringtoneName = selectedSongTitle
+                                    // Clean up the song title for default name
+                                    var cleanName = selectedSongTitle
+                                    let extensionsToRemove = [".mp3", ".m4a", ".m4r", ".wav", ".aac"]
+                                    for ext in extensionsToRemove {
+                                        if cleanName.lowercased().hasSuffix(ext) {
+                                            cleanName = String(cleanName.dropLast(ext.count))
+                                        }
+                                    }
+                                    ringtoneName = cleanName
                                     showingSaveDialog = true
                                 }) {
                                     HStack {
