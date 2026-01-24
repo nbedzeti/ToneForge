@@ -139,10 +139,10 @@ struct RingtoneLibraryView: View {
                 .multilineTextAlignment(.center)
             
             VStack(alignment: .leading, spacing: 12) {
-                FeatureRow(icon: "infinity", title: "Unlimited Storage", description: "Save as many ringtones as you want")
-                FeatureRow(icon: "folder.fill", title: "Organize with Tags", description: "Keep your ringtones organized")
-                FeatureRow(icon: "heart.fill", title: "Mark Favorites", description: "Quick access to your best ringtones")
-                FeatureRow(icon: "square.and.arrow.up", title: "Batch Export", description: "Share multiple ringtones at once")
+                LibraryFeatureRow(icon: "infinity", title: "Unlimited Storage", description: "Save as many ringtones as you want")
+                LibraryFeatureRow(icon: "folder.fill", title: "Organize with Tags", description: "Keep your ringtones organized")
+                LibraryFeatureRow(icon: "heart.fill", title: "Mark Favorites", description: "Quick access to your best ringtones")
+                LibraryFeatureRow(icon: "square.and.arrow.up", title: "Batch Export", description: "Share multiple ringtones at once")
             }
             .padding()
             .background(Color.green.opacity(0.1))
@@ -304,7 +304,7 @@ struct RingtoneRow: View {
     }
 }
 
-struct FeatureRow: View {
+struct LibraryFeatureRow: View {
     let icon: String
     let title: String
     let description: String
