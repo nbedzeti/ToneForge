@@ -14,6 +14,11 @@ import Combine
 @Observable
 class PurchaseManager {
     
+    // MARK: - Testing Flag
+    
+    /// Set to true to enable premium features for testing (REMOVE BEFORE PRODUCTION!)
+    private let enablePremiumForTesting = true
+    
     // MARK: - Published Properties
     
     /// All available products from App Store
@@ -115,6 +120,12 @@ class PurchaseManager {
     // MARK: - Initialization
     
     init() {
+        // TESTING: Enable premium features for testing
+        if enablePremiumForTesting {
+            self.isPremium = true
+            print("🧪 TESTING MODE: Premium features enabled at init")
+        }
+        
         // Load saved values from UserDefaults
         self.freeCreationsUsed = UserDefaults.standard.integer(forKey: UserDefaultsKeys.freeCreationsUsed)
         self.extraCreationsAvailable = UserDefaults.standard.integer(forKey: UserDefaultsKeys.extraCreationsAvailable)
@@ -274,7 +285,14 @@ class PurchaseManager {
         
         // Update state
         purchasedProductIDs = newPurchasedIDs
-        isPremium = hasActiveSubscription || hasLifetimePurchase
+        
+        // TESTING: Override with testing flag
+        if enablePremiumForTesting {
+            isPremium = true
+            print("🧪 TESTING MODE: Premium features enabled")
+        } else {
+            isPremium = hasActiveSubscription || hasLifetimePurchase
+        }
         
         // Update subscription status
         if hasLifetimePurchase {
