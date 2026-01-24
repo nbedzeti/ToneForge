@@ -184,7 +184,7 @@ struct ContentView: View {
                                         .frame(width: 40)
                                     
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Select from Music")
+                                        Text("My Music Library")
                                             .font(.headline)
                                             .foregroundColor(.green)
                                         Text("Choose a song to edit")
