@@ -53,6 +53,7 @@ struct ContentView: View {
     @State private var showingLibrary = false
     @State private var showingSaveDialog = false
     @State private var ringtoneName = ""
+    @State private var isPreviewingEffects = false
     
     private let maxRingtoneDuration: Double = 30
     
@@ -394,53 +395,90 @@ struct ContentView: View {
                                     )
                                     
                                     // Preview buttons
-                                    HStack(spacing: 8) {
-                                        // Preview full song
-                                        Button(action: {
-                                            if isPlaying {
-                                                stopPreview()
-                                            } else {
-                                                playPreview()
+                                    VStack(spacing: 8) {
+                                        HStack(spacing: 8) {
+                                            // Preview full song
+                                            Button(action: {
+                                                if isPlaying {
+                                                    stopPreview()
+                                                } else {
+                                                    playPreview()
+                                                }
+                                            }) {
+                                                HStack(spacing: 6) {
+                                                    Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                                                        .font(.body)
+                                                    Text(isPlaying ? "Stop" : "Full Song")
+                                                        .font(.caption)
+                                                }
+                                                .foregroundColor(.green)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 10)
+                                                .background(Color.green.opacity(0.1))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                                                )
                                             }
-                                        }) {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
-                                                    .font(.body)
-                                                Text(isPlaying ? "Stop" : "Full Song")
-                                                    .font(.caption)
+                                            
+                                            // Preview selected portion
+                                            Button(action: {
+                                                if isPlaying {
+                                                    stopPreview()
+                                                } else {
+                                                    playSelectedPortion()
+                                                }
+                                            }) {
+                                                HStack(spacing: 6) {
+                                                    Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                                                        .font(.body)
+                                                    Text(isPlaying ? "Stop" : "Selection")
+                                                        .font(.caption)
+                                                }
+                                                .foregroundColor(.orange)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 10)
+                                                .background(Color.orange.opacity(0.1))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                                                )
                                             }
-                                            .foregroundColor(.green)
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 10)
-                                            .background(Color.green.opacity(0.1))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                                            )
                                         }
                                         
-                                        // Preview selected portion
-                                        Button(action: {
-                                            if isPlaying {
-                                                stopPreview()
-                                            } else {
-                                                playSelectedPortion()
+                                        // Preview with effects (Premium only)
+                                        if purchaseManager.isPremium && hasEffectsEnabled {
+                                            Button(action: {
+                                                if isPlaying {
+                                                    stopPreview()
+                                                } else {
+                                                    playPreviewWithEffects()
+                                                }
+                                            }) {
+                                                HStack(spacing: 6) {
+                                                    if isPreviewingEffects {
+                                                        ProgressView()
+                                                            .progressViewStyle(CircularProgressViewStyle(tint: .purple))
+                                                            .scaleEffect(0.8)
+                                                        Text("Processing...")
+                                                            .font(.caption)
+                                                    } else {
+                                                        Image(systemName: isPlaying ? "stop.circle.fill" : "waveform.circle.fill")
+                                                            .font(.body)
+                                                        Text(isPlaying ? "Stop" : "Preview with Effects")
+                                                            .font(.caption)
+                                                    }
+                                                }
+                                                .foregroundColor(.purple)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 10)
+                                                .background(Color.purple.opacity(0.1))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+                                                )
                                             }
-                                        }) {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
-                                                    .font(.body)
-                                                Text(isPlaying ? "Stop" : "Selection")
-                                                    .font(.caption)
-                                            }
-                                            .foregroundColor(.orange)
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 10)
-                                            .background(Color.orange.opacity(0.1))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                                            )
+                                            .disabled(isPreviewingEffects)
                                         }
                                     }
                                 }
@@ -701,6 +739,15 @@ struct ContentView: View {
     
     // MARK: - Helper Functions
     
+    /// Check if any audio effects are enabled
+    private var hasEffectsEnabled: Bool {
+        return audioEffects.fadeInDuration > 0 ||
+               audioEffects.fadeOutDuration > 0 ||
+               audioEffects.volumeBoost != 1.0 ||
+               audioEffects.normalizeAudio ||
+               audioEffects.equalizerPreset != .none
+    }
+    
     private func requestMediaLibraryAccess() {
         let status = MPMediaLibrary.authorizationStatus()
         
@@ -904,6 +951,65 @@ struct ContentView: View {
                         }
                     }
                 }
+            }
+        }
+    }
+    
+    private func playPreviewWithEffects() {
+        guard let asset = audioAsset else { return }
+        guard purchaseManager.isPremium else { return }
+        
+        stopPreview()
+        isPreviewingEffects = true
+        
+        Task {
+            do {
+                print("🎵 Starting preview with effects...")
+                
+                // Export with effects to temp file
+                let tempURL = try await AudioProcessor.exportRingtoneWithEffects(
+                    asset: asset,
+                    startTime: startTime,
+                    endTime: endTime,
+                    effects: audioEffects
+                )
+                
+                print("✅ Effects preview exported to: \(tempURL)")
+                
+                await MainActor.run {
+                    isPreviewingEffects = false
+                    
+                    do {
+                        audioPlayer = try AVAudioPlayer(contentsOf: tempURL)
+                        audioPlayer?.prepareToPlay()
+                        audioPlayer?.play()
+                        isPlaying = true
+                        currentPlaybackTime = startTime
+                        
+                        // Update progress every 0.1 seconds
+                        playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [self] _ in
+                            if let player = self.audioPlayer, player.isPlaying {
+                                // Map player time to actual song time
+                                let progress = player.currentTime / player.duration
+                                self.currentPlaybackTime = self.startTime + (progress * (self.endTime - self.startTime))
+                            } else {
+                                self.stopPreview()
+                                // Clean up temp file
+                                try? FileManager.default.removeItem(at: tempURL)
+                            }
+                        }
+                    } catch {
+                        print("❌ Effects preview playback error: \(error)")
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isPreviewingEffects = false
+                    alertTitle = "Preview Error"
+                    alertMessage = "Failed to preview with effects: \(error.localizedDescription)"
+                    showingAlert = true
+                }
+                print("❌ Effects preview error: \(error)")
             }
         }
     }
