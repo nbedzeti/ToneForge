@@ -110,7 +110,7 @@ In App Store Connect:
 | Plan | Price | Savings |
 |------|-------|---------|
 | Monthly | $2.99/month | - |
-| Yearly | $19.99/year | 44% off |
+| Yearly | $17.99/year | 50% off |
 | Lifetime | $24.99 one-time | Best value |
 
 **Free tier**: 3 ringtones + ads

@@ -32,9 +32,9 @@ Create these 3 products in App Store Connect:
 #### Yearly Subscription
 - **Product ID**: `com.IceFireSoul.ToneForge.premium.yearly`
 - **Reference Name**: Yearly Premium
-- **Price**: $19.99 USD
+- **Price**: $17.99 USD
 - **Subscription Duration**: 1 year
-- **Description**: "Yearly subscription for unlimited ringtone creations with premium features and no ads. Save 44% compared to monthly!"
+- **Description**: "Yearly subscription for unlimited ringtone creations with premium features and no ads. Save 50% compared to monthly!"
 
 #### Lifetime Purchase
 - **Product ID**: `com.IceFireSoul.ToneForge.premium.lifetime`
@@ -110,7 +110,7 @@ Due to copyright protection, streaming music from Spotify, Apple Music, and othe
 PRICING
 
 Monthly: $2.99/month
-Yearly: $19.99/year (Save 44%!)
+Yearly: $17.99/year (Save 50%!)
 Lifetime: $24.99 one-time
 
 Privacy Policy: [Your URL]
