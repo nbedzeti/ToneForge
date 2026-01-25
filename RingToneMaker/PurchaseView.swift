@@ -150,6 +150,60 @@ struct PurchaseView: View {
                 .background(Color.orange.opacity(0.1))
                 .cornerRadius(12)
             }
+            
+            // Watch Ad Button
+            if !purchaseManager.isPremium {
+                Button(action: {
+                    Task {
+                        await watchAd()
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "play.circle.fill")
+                            .font(.title3)
+                        Text("Watch Ad to Unlock Ringtone")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(
+                        LinearGradient(
+                            colors: [Color.green, Color.green.opacity(0.8)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(12)
+                }
+                .disabled(purchaseManager.adManager?.isLoadingAd ?? false)
+                
+                Text("Watch 3 ads to unlock 1 ringtone")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+    
+    // MARK: - Watch Ad Function
+    
+    private func watchAd() async {
+        guard let adManager = purchaseManager.adManager else { return }
+        
+        await MainActor.run {
+            purchaseManager.showRewardedAd { success in
+                if success {
+                    // Ad watched successfully, progress updated automatically
+                    if purchaseManager.extraCreationsAvailable > 0 {
+                        // User unlocked a ringtone!
+                        // Optionally dismiss the view
+                        dismiss()
+                    }
+                } else {
+                    // Ad failed to show
+                    showingError = true
+                }
+            }
         }
     }
     

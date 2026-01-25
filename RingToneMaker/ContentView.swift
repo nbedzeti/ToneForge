@@ -1137,9 +1137,8 @@ struct ContentView: View {
     
     private func handleExport() {
         guard !purchaseManager.needsToWatchAdsOrUpgrade else {
-            alertTitle = "Limit Reached"
-            alertMessage = "Watch ads or upgrade to Premium"
-            showingAlert = true
+            // Show purchase view where user can watch ads or upgrade
+            showingPurchaseView = true
             return
         }
         
