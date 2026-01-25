@@ -223,14 +223,9 @@ struct PurchaseView: View {
                 .foregroundColor(.green.opacity(0.5))
                 .multilineTextAlignment(.center)
             
-            HStack(spacing: 16) {
-                Link("Terms of Service", destination: URL(string: "https://yourcompany.com/terms")!)
-                Text("•")
-                    .foregroundColor(.green.opacity(0.5))
-                Link("Privacy Policy", destination: URL(string: "https://yourcompany.com/privacy")!)
-            }
-            .font(.caption2)
-            .foregroundColor(.green)
+            Link("Privacy Policy", destination: URL(string: "https://nbedzeti.github.io/ToneForge/privacy.html")!)
+                .font(.caption2)
+                .foregroundColor(.green)
         }
         .padding(.top)
     }
