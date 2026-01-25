@@ -109,7 +109,6 @@ struct CustomNumberPad: View {
                 }
             }
         }
-        print("DEBUG: text is now: '\(text)'")
     }
 }
 

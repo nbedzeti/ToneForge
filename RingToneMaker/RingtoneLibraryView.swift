@@ -100,9 +100,6 @@ struct RingtoneLibraryView: View {
                                     library.toggleFavorite(ringtone)
                                 },
                                 onShare: {
-                                    print("📤 Sharing ringtone: \(ringtone.name)")
-                                    print("📂 File URL: \(ringtone.fileURL)")
-                                    
                                     // Use UIActivityViewController directly
                                     let activityVC = UIActivityViewController(
                                         activityItems: [ringtone.fileURL],

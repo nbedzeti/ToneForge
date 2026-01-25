@@ -17,7 +17,7 @@ class PurchaseManager {
     // MARK: - Testing Flag
     
     /// Set to true to enable premium features for testing (REMOVE BEFORE PRODUCTION!)
-    private let enablePremiumForTesting = true
+    private let enablePremiumForTesting = false // ⚠️ MUST BE FALSE FOR PRODUCTION
     
     // MARK: - Published Properties
     
