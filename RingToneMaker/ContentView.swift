@@ -1138,7 +1138,7 @@ struct ContentView: View {
     private func handleExport() {
         guard !purchaseManager.needsToWatchAdsOrUpgrade else {
             // Show purchase view where user can watch ads or upgrade
-            showingPurchaseView = true
+            showingPremiumView = true
             return
         }
         
