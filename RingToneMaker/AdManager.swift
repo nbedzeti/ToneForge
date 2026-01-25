@@ -31,7 +31,7 @@ class AdManager: NSObject, ObservableObject {
     
     // Ad Unit IDs
     private let testAdUnitID = "ca-app-pub-3940256099942544/1712485313" // AdMob test rewarded ad ID
-    private let productionAdUnitID = "ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY" // Replace with your ID from AdMob console
+    private let productionAdUnitID = "ca-app-pub-9839581693857719/2179950827" // Your real AdMob rewarded ad ID
     
     private var currentAdUnitID: String {
         #if DEBUG
