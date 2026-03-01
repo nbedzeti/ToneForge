@@ -114,95 +114,26 @@ struct PurchaseView: View {
                 .cornerRadius(12)
             }
             
-            if purchaseManager.extraCreationsAvailable > 0 {
-                HStack {
-                    Image(systemName: "play.rectangle.fill")
-                        .foregroundColor(.green)
-                    Text("\(purchaseManager.extraCreationsAvailable) ad-unlocked ringtones available")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                }
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(Color.green.opacity(0.1))
-                .cornerRadius(12)
-            }
-            
-            if purchaseManager.adsWatchedForNextUnlock > 0 {
-                VStack(spacing: 8) {
+            // Show upgrade message when free tier is used
+            if !purchaseManager.isPremium && purchaseManager.remainingFreeCreations == 0 {
+                VStack(spacing: 12) {
                     HStack {
-                        Image(systemName: "tv.fill")
+                        Image(systemName: "star.fill")
                             .foregroundColor(.orange)
-                        Text("Progress to next unlock")
+                        Text("Free tier used")
                             .font(.subheadline)
                             .fontWeight(.medium)
                     }
                     
-                    ProgressView(value: purchaseManager.adUnlockProgress)
-                        .tint(.orange)
-                    
-                    Text("\(purchaseManager.adsWatchedForNextUnlock)/3 ads watched")
+                    Text("Upgrade to Premium for unlimited ringtones")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
                 .background(Color.orange.opacity(0.1))
                 .cornerRadius(12)
-            }
-            
-            // Watch Ad Button
-            if !purchaseManager.isPremium {
-                Button(action: {
-                    Task {
-                        await watchAd()
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "play.circle.fill")
-                            .font(.title3)
-                        Text("Watch Ad to Unlock Ringtone")
-                            .fontWeight(.semibold)
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(
-                        LinearGradient(
-                            colors: [Color.green, Color.green.opacity(0.8)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(12)
-                }
-                .disabled(purchaseManager.adManager?.isLoadingAd ?? false)
-                
-                Text("Watch 3 ads to unlock 1 ringtone")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-    
-    // MARK: - Watch Ad Function
-    
-    private func watchAd() async {
-        guard let adManager = purchaseManager.adManager else { return }
-        
-        await MainActor.run {
-            purchaseManager.showRewardedAd { success in
-                if success {
-                    // Ad watched successfully, progress updated automatically
-                    if purchaseManager.extraCreationsAvailable > 0 {
-                        // User unlocked a ringtone!
-                        // Optionally dismiss the view
-                        dismiss()
-                    }
-                } else {
-                    // Ad failed to show
-                    showingError = true
-                }
             }
         }
     }
@@ -237,8 +168,8 @@ struct PurchaseView: View {
                 .foregroundColor(.green)
             
             FeatureRow(icon: "infinity", title: "Unlimited Ringtones", description: "Create as many as you want")
-            FeatureRow(icon: "nosign", title: "No Ads", description: "Enjoy ad-free experience")
-            FeatureRow(icon: "sparkles", title: "All Features", description: "Access to all current and future features")
+            FeatureRow(icon: "sparkles", title: "All Premium Effects", description: "Fade, reverb, EQ, and more")
+            FeatureRow(icon: "waveform", title: "Audio Normalization", description: "Perfect volume levels")
             FeatureRow(icon: "heart.fill", title: "Support Development", description: "Help us build more great features")
         }
         .padding()
@@ -271,15 +202,48 @@ struct PurchaseView: View {
     // MARK: - Legal Section
     
     private var legalSection: some View {
-        VStack(spacing: 8) {
-            Text("Subscriptions auto-renew unless cancelled 24 hours before the end of the current period. Manage subscriptions in App Store settings.")
+        VStack(spacing: 12) {
+            // Subscription terms
+            VStack(spacing: 8) {
+                Text("Subscription Information")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.green)
+                
+                Text("• Premium Monthly: $4.99/month, auto-renews monthly")
+                    .font(.caption2)
+                    .foregroundColor(.green.opacity(0.7))
+                
+                Text("• Premium Yearly: $29.99/year, auto-renews yearly")
+                    .font(.caption2)
+                    .foregroundColor(.green.opacity(0.7))
+                
+                Text("• Premium Lifetime: $49.99 one-time payment")
+                    .font(.caption2)
+                    .foregroundColor(.green.opacity(0.7))
+            }
+            .multilineTextAlignment(.center)
+            .padding(.vertical, 8)
+            
+            Text("Payment will be charged to your Apple ID at confirmation of purchase. Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. Manage subscriptions in Settings → [Your Name] → Subscriptions.")
                 .font(.caption2)
                 .foregroundColor(.green.opacity(0.5))
                 .multilineTextAlignment(.center)
             
-            Link("Privacy Policy", destination: URL(string: "https://nbedzeti.github.io/ToneForge/privacy.html")!)
-                .font(.caption2)
-                .foregroundColor(.green)
+            // Legal links
+            HStack(spacing: 16) {
+                Link("Privacy Policy", destination: URL(string: "https://nbedzeti.github.io/ToneForge/privacy.html")!)
+                    .font(.caption2)
+                    .foregroundColor(.green)
+                
+                Text("•")
+                    .font(.caption2)
+                    .foregroundColor(.green.opacity(0.5))
+                
+                Link("Terms of Use", destination: URL(string: "https://nbedzeti.github.io/ToneForge/terms.html")!)
+                    .font(.caption2)
+                    .foregroundColor(.green)
+            }
         }
         .padding(.top)
     }

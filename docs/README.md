@@ -1,6 +1,6 @@
-# ToneForge Studio - Privacy Policy Hosting
+# ToneForge Studio - Legal Documents Hosting
 
-This folder contains the privacy policy for ToneForge Studio, hosted via GitHub Pages.
+This folder contains the privacy policy and terms of use for ToneForge Studio, hosted via GitHub Pages.
 
 ## Setup Instructions
 
@@ -15,54 +15,59 @@ This folder contains the privacy policy for ToneForge Studio, hosted via GitHub 
 5. Click **Save**
 6. Wait 1-2 minutes for deployment
 
-### 2. Verify It's Live
+### 2. Verify They're Live
 
-Visit: https://nbedzeti.github.io/ToneForge/privacy.html
+Visit: 
+- Privacy Policy: https://nbedzeti.github.io/ToneForge/privacy.html
+- Terms of Use: https://nbedzeti.github.io/ToneForge/terms.html
 
-You should see the privacy policy page.
+You should see both legal documents.
 
-### 3. Test the Link
+### 3. Test the Links
 
-Open ToneForge Studio app → Premium screen → Click "Privacy Policy"
+Open ToneForge Studio app → Premium screen → Click "Privacy Policy" or "Terms of Use"
 
-It should open the privacy policy in Safari.
+They should open the respective pages in Safari.
 
 ---
 
 ## Files
 
 - `privacy.html` - Privacy policy page (styled, mobile-friendly)
+- `terms.html` - Terms of Use / EULA page (styled, mobile-friendly)
 - `README.md` - This file
 
 ---
 
-## Updating the Privacy Policy
+## Updating Legal Documents
 
-To update the privacy policy:
+To update the privacy policy or terms of use:
 
-1. Edit `docs/privacy.html`
+1. Edit `docs/privacy.html` or `docs/terms.html`
 2. Update the "Last updated" date
 3. Commit and push to GitHub
 4. Changes go live automatically (1-2 minutes)
 
 ---
 
-## URL
+## URLs
 
-**Live URL:** https://nbedzeti.github.io/ToneForge/privacy.html
+**Privacy Policy:** https://nbedzeti.github.io/ToneForge/privacy.html  
+**Terms of Use:** https://nbedzeti.github.io/ToneForge/terms.html
 
-This URL is already configured in the app code:
+These URLs are configured in the app code:
 - File: `RingToneMaker/PurchaseView.swift`
-- Line: ~226
+- Privacy Policy link: Line ~226
+- Terms of Use link: Line ~234
 
 ---
 
 ## Contact Email
 
-Update the contact email in `privacy.html` if needed:
-- Current: `support@toneforge.app`
-- Change to your real email before launch
+Update the contact email in both `privacy.html` and `terms.html` if needed:
+- Current: `nbedzeti.ny@icloud.com`
+- Change to your preferred email before launch
 
 ---
 
-**Last Updated**: January 24, 2025
+**Last Updated**: January 28, 2025

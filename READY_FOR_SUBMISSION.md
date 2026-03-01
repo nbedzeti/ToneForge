@@ -1,6 +1,6 @@
 # ✅ ToneForge Studio - Ready for App Store Submission
 
-**Date**: January 24, 2025  
+**Date**: January 25, 2026  
 **Version**: 1.0 (Build 1)  
 **Status**: PRODUCTION READY ✅
 
@@ -16,9 +16,8 @@
 - [x] Preview playback
 - [x] Custom number pad for time entry
 
-### ✅ Premium Features (11 total)
+### ✅ Premium Features (10 total)
 - [x] Unlimited ringtones
-- [x] No ads
 - [x] Fade in/out effects
 - [x] Volume boost
 - [x] Audio normalization
@@ -29,11 +28,13 @@
 - [x] Preview with effects
 - [x] Save to library
 
-### ✅ Monetization
+### ✅ Monetization (v1.0 Model)
 - [x] Free tier (3 ringtones)
-- [x] AdMob integration (rewarded ads)
 - [x] In-app purchases (monthly/yearly/lifetime)
 - [x] Purchase manager with StoreKit 2
+- ⏭️ AdMob integration (deferred to v1.1)
+
+**Note:** v1.0 uses simplified monetization: 3 free ringtones → premium subscription required. Ads will be added in v1.1 update.
 
 ### ✅ UI/UX
 - [x] Black/green theme throughout
@@ -49,6 +50,7 @@
 - [x] Build successful (no errors)
 - [x] Version numbers set
 - [x] Bundle ID configured
+- [x] Ad functionality commented out for v1.0
 
 ---
 
@@ -105,7 +107,7 @@ In App Store Connect:
 
 ---
 
-## 💰 Pricing Summary
+## 💰 Pricing Summary (v1.0)
 
 | Plan | Price | Savings |
 |------|-------|---------|
@@ -113,7 +115,9 @@ In App Store Connect:
 | Yearly | $17.99/year | 50% off |
 | Lifetime | $24.99 one-time | Best value |
 
-**Free tier**: 3 ringtones + ads
+**Free tier**: 3 ringtones (no ads in v1.0)
+
+**v1.1 Update**: Will add rewarded video ads (watch 3 ads = 1 ringtone)
 
 ---
 
@@ -249,6 +253,8 @@ Remember: The first version doesn't have to be perfect. Ship it, get feedback, i
 
 **Questions?** Review the `PRODUCTION_CHECKLIST.md` for detailed instructions.
 
-**Last Updated**: January 24, 2025  
-**Commit**: 6869999  
+**Last Updated**: January 25, 2026  
+**Version**: 1.0 (No ads - simplified monetization)  
 **Branch**: main
+
+**See V1.0_RELEASE_NOTES.md for detailed v1.0 changes and v1.1 roadmap**

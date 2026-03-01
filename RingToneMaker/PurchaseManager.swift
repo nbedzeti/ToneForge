@@ -45,6 +45,9 @@ class PurchaseManager {
         }
     }
     
+    // V1.1: Ad-related properties (disabled for v1.0)
+    // These will be re-enabled when AdMob SDK is integrated in v1.1
+    /*
     /// Extra creations unlocked by watching ads
     var extraCreationsAvailable: Int {
         didSet {
@@ -65,12 +68,13 @@ class PurchaseManager {
             UserDefaults.standard.set(adsWatchedForNextUnlock, forKey: UserDefaultsKeys.adsWatchedForNextUnlock)
         }
     }
+    */
     
     // MARK: - Computed Properties
     
-    /// Whether user can create a ringtone
+    /// Whether user can create a ringtone (v1.0: 3 free + premium only)
     var canCreateRingtone: Bool {
-        return isPremium || freeCreationsUsed < 3 || extraCreationsAvailable > 0
+        return isPremium || freeCreationsUsed < 3
     }
     
     /// Remaining free creations (0-3)
@@ -78,14 +82,9 @@ class PurchaseManager {
         return max(0, 3 - freeCreationsUsed)
     }
     
-    /// Whether user needs to watch ads or upgrade
+    /// Whether user needs to upgrade (v1.0: no ads, just upgrade)
     var needsToWatchAdsOrUpgrade: Bool {
-        return !isPremium && freeCreationsUsed >= 3 && extraCreationsAvailable == 0
-    }
-    
-    /// Progress towards next ad unlock (0.0 - 1.0)
-    var adUnlockProgress: Double {
-        return Double(adsWatchedForNextUnlock) / 3.0
+        return !isPremium && freeCreationsUsed >= 3
     }
     
     // MARK: - Product IDs
@@ -104,9 +103,10 @@ class PurchaseManager {
     
     private enum UserDefaultsKeys {
         static let freeCreationsUsed = "freeCreationsUsed"
-        static let extraCreationsAvailable = "extraCreationsAvailable"
-        static let totalAdsWatched = "totalAdsWatched"
-        static let adsWatchedForNextUnlock = "adsWatchedForNextUnlock"
+        // V1.1: Ad-related keys (disabled for v1.0)
+        // static let extraCreationsAvailable = "extraCreationsAvailable"
+        // static let totalAdsWatched = "totalAdsWatched"
+        // static let adsWatchedForNextUnlock = "adsWatchedForNextUnlock"
         static let firstLaunchDate = "firstLaunchDate"
         static let totalCreationsCount = "totalCreationsCount"
     }
@@ -115,7 +115,8 @@ class PurchaseManager {
     
     nonisolated(unsafe) private var updateListenerTask: Task<Void, Error>?
     private var purchasedProductIDs: Set<String> = []
-    var adManager: AdManager?
+    // V1.1: AdManager will be re-enabled when AdMob SDK is integrated
+    // var adManager: AdManager?
     
     // MARK: - Initialization
     
@@ -126,21 +127,27 @@ class PurchaseManager {
             print("🧪 TESTING MODE: Premium features enabled at init")
         }
         
-        // Load saved values from UserDefaults
+        // Load saved values from UserDefaults (v1.0: only free creations)
         self.freeCreationsUsed = UserDefaults.standard.integer(forKey: UserDefaultsKeys.freeCreationsUsed)
+        
+        // V1.1: Ad-related initialization (disabled for v1.0)
+        /*
         self.extraCreationsAvailable = UserDefaults.standard.integer(forKey: UserDefaultsKeys.extraCreationsAvailable)
         self.totalAdsWatched = UserDefaults.standard.integer(forKey: UserDefaultsKeys.totalAdsWatched)
         self.adsWatchedForNextUnlock = UserDefaults.standard.integer(forKey: UserDefaultsKeys.adsWatchedForNextUnlock)
+        */
         
         // Set first launch date if not set
         if UserDefaults.standard.object(forKey: UserDefaultsKeys.firstLaunchDate) == nil {
             UserDefaults.standard.set(Date(), forKey: UserDefaultsKeys.firstLaunchDate)
         }
         
-        // Initialize ad manager
+        // V1.1: Initialize ad manager (disabled for v1.0)
+        /*
         Task { @MainActor in
             self.adManager = AdManager()
         }
+        */
         
         // Start listening for transaction updates
         updateListenerTask = listenForTransactions()
@@ -194,6 +201,10 @@ class PurchaseManager {
         isLoading = true
         errorMessage = nil
         
+        defer {
+            isLoading = false
+        }
+        
         do {
             let result = try await product.purchase()
             
@@ -229,8 +240,6 @@ class PurchaseManager {
             print("❌ Purchase error: \(error)")
             throw error
         }
-        
-        isLoading = false
     }
     
     /// Restore purchases
@@ -395,7 +404,7 @@ class PurchaseManager {
     
     // MARK: - Free Tier Management
     
-    /// Use a free creation
+    /// Use a free creation (v1.0: simple 3 free + premium model)
     func useFreeCreation() {
         guard canCreateRingtone else {
             print("❌ Cannot create ringtone - no creations available")
@@ -405,10 +414,6 @@ class PurchaseManager {
         if isPremium {
             // Premium users have unlimited
             print("✅ Premium user - unlimited creations")
-        } else if extraCreationsAvailable > 0 {
-            // Use ad-unlocked creation
-            extraCreationsAvailable -= 1
-            print("✅ Used ad-unlocked creation. Remaining: \(extraCreationsAvailable)")
         } else if freeCreationsUsed < 3 {
             // Use free creation
             freeCreationsUsed += 1
@@ -423,14 +428,17 @@ class PurchaseManager {
     /// Reset free creations (for testing only)
     func resetFreeCreations() {
         freeCreationsUsed = 0
-        extraCreationsAvailable = 0
-        totalAdsWatched = 0
-        adsWatchedForNextUnlock = 0
+        // V1.1: Reset ad-related counters (disabled for v1.0)
+        // extraCreationsAvailable = 0
+        // totalAdsWatched = 0
+        // adsWatchedForNextUnlock = 0
         print("🔄 Reset free creations")
     }
     
-    // MARK: - Rewarded Ads
+    // MARK: - V1.1: Rewarded Ads (Disabled for v1.0)
+    // These methods will be re-enabled when AdMob SDK is integrated in v1.1
     
+    /*
     /// Called when user watches a rewarded ad
     func rewardedAdWatched() {
         guard !isPremium else {
@@ -476,6 +484,7 @@ class PurchaseManager {
             completion(success)
         }
     }
+    */
     
     // MARK: - Helper Methods
     
@@ -577,7 +586,7 @@ enum PurchaseError: Error, LocalizedError {
 // MARK: - Extensions
 
 extension PurchaseManager {
-    /// Get usage statistics for display
+    /// Get usage statistics for display (v1.0: simplified without ads)
     var usageStats: UsageStats {
         let total = UserDefaults.standard.integer(forKey: UserDefaultsKeys.totalCreationsCount)
         let firstLaunch = UserDefaults.standard.object(forKey: UserDefaultsKeys.firstLaunchDate) as? Date ?? Date()
@@ -585,8 +594,9 @@ extension PurchaseManager {
         return UsageStats(
             totalCreations: total,
             freeCreationsUsed: freeCreationsUsed,
-            extraCreationsAvailable: extraCreationsAvailable,
-            totalAdsWatched: totalAdsWatched,
+            // V1.1: Ad-related stats (disabled for v1.0)
+            // extraCreationsAvailable: extraCreationsAvailable,
+            // totalAdsWatched: totalAdsWatched,
             memberSince: firstLaunch,
             isPremium: isPremium,
             subscriptionStatus: subscriptionStatus
@@ -598,8 +608,9 @@ extension PurchaseManager {
 struct UsageStats {
     let totalCreations: Int
     let freeCreationsUsed: Int
-    let extraCreationsAvailable: Int
-    let totalAdsWatched: Int
+    // V1.1: Ad-related stats (disabled for v1.0)
+    // let extraCreationsAvailable: Int
+    // let totalAdsWatched: Int
     let memberSince: Date
     let isPremium: Bool
     let subscriptionStatus: SubscriptionStatus
