@@ -51,14 +51,18 @@ struct ContentView: View {
     @State private var showingAudioEffects = false
     @State private var ringtoneLibrary = RingtoneLibrary()
     @State private var showingLibrary = false
+    @State private var showingRadio = false
     @State private var showingSaveDialog = false
     @State private var ringtoneName = ""
     @State private var isPreviewingEffects = false
+    @State private var radioPlayerManager = RadioPlayerManager()
     
     private let maxRingtoneDuration: Double = 30
     
     var body: some View {
         ZStack {
+            Color.black.ignoresSafeArea()
+            
             if showingSplash {
                 SplashScreenView(onComplete: {
                     showingSplash = false
@@ -67,6 +71,7 @@ struct ContentView: View {
                 mainContent
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     private var mainContent: some View {
@@ -172,6 +177,13 @@ struct ContentView: View {
                 .zIndex(2000)
             }
         }
+        .overlay(alignment: .bottom) {
+            if radioPlayerManager.isPlaying || radioPlayerManager.isBuffering,
+               let station = radioPlayerManager.currentStation {
+                nowPlayingFloatingBar(station: station)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .sheet(isPresented: $showingMediaPicker) {
             MediaPickerView(
                 selectedSongTitle: $selectedSongTitle,
@@ -190,15 +202,22 @@ struct ContentView: View {
                 }
             )
         }
-        .sheet(isPresented: $showingPremiumView) {
+        .fullScreenCover(isPresented: $showingPremiumView) {
             PurchaseView(purchaseManager: purchaseManager)
         }
-        .sheet(isPresented: $showingLibrary) {
+        .fullScreenCover(isPresented: $showingLibrary) {
             RingtoneLibraryView(
                 library: ringtoneLibrary,
                 isPremium: purchaseManager.isPremium,
                 onUpgrade: { showingPremiumView = true }
             )
+        }
+        .fullScreenCover(isPresented: $showingRadio) {
+            RadioView(purchaseManager: purchaseManager, playerManager: radioPlayerManager) { clipURL in
+                showingRadio = false
+                loadAudioAsset(from: clipURL)
+                selectedSongTitle = "Radio Clip"
+            }
         }
         .sheet(isPresented: $showShareSheet) {
             if let url = exportedFileURL {
@@ -213,247 +232,329 @@ struct ContentView: View {
         .onDisappear {
             stopPreview()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     // MARK: - Selection Screen
     
     private var selectionScreen: some View {
         GeometryReader { geometry in
+            let isLandscape = geometry.size.width > geometry.size.height
+            let isTablet = min(geometry.size.width, geometry.size.height) > 600
+            let maxContentWidth: CGFloat = isTablet ? 600 : .infinity
+            let hPad = isTablet ? (geometry.size.width - 600) / 2 : geometry.size.width * 0.04
+            let buttonVPad = max(9, geometry.size.height * 0.012)
+            let sectionSpacing = isLandscape ? max(6, geometry.size.height * 0.015) : max(10, geometry.size.height * 0.018)
+            
             ZStack {
                 Color.black.ignoresSafeArea()
                 
-                ScrollView {
-                    VStack(spacing: geometry.size.height * 0.03) {
-                        // Header
-                        VStack(spacing: 12) {
+                VStack(spacing: 0) {
+                    // Header — proportional top spacing
+                    VStack(spacing: isLandscape ? 2 : max(4, geometry.size.height * 0.008)) {
+                        if !isLandscape {
                             Image(systemName: "waveform.circle.fill")
-                                .font(.system(size: min(70, geometry.size.width * 0.18)))
+                                .font(.system(size: isTablet ? 64 : min(70, geometry.size.width * 0.18)))
                                 .foregroundColor(.green)
-                                .shadow(color: .green.opacity(0.5), radius: 20)
-                            
-                            Text("ToneForge Studio")
-                                .font(.system(size: min(32, geometry.size.width * 0.08), weight: .bold, design: .rounded))
-                                .foregroundColor(.green)
-                            
+                                .shadow(color: .green.opacity(0.5), radius: 15)
+                        }
+                        
+                        Text("ToneForge Studio")
+                            .font(.system(size: isTablet ? 32 : min(32, geometry.size.width * 0.08), weight: .bold, design: .rounded))
+                            .foregroundColor(.green)
+                        
+                        if !isLandscape {
                             Text("Your Phone, Your Ringtone")
-                                .font(.caption)
-                                .foregroundColor(.green)
-                                .fontWeight(.semibold)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 6)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.green.opacity(0.15))
-                                        .overlay(
-                                            Capsule()
-                                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                                        )
-                                )
-                            
-                            Text("Create custom ringtones")
-                                .font(.subheadline)
+                                .font(.callout)
                                 .foregroundColor(.green.opacity(0.7))
                         }
-                        .padding(.top, 8)  // Minimal top padding
-                        
-                        // Selection Buttons
-                        VStack(spacing: 12) {
-                            Button(action: { requestMediaLibraryAccess() }) {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "music.note.list")
-                                        .font(.title2)
-                                        .foregroundColor(.green)
-                                        .frame(width: 40)
-                                    
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("My Music Library")
-                                            .font(.headline)
-                                            .foregroundColor(.green)
-                                        Text("Choose a song to edit")
-                                            .font(.caption)
-                                            .foregroundColor(.green.opacity(0.6))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, geometry.safeAreaInsets.top)
+                    .padding(.bottom, sectionSpacing)
+                    
+                    // Buttons section — fills remaining space proportionally
+                    if isLandscape {
+                        // Landscape: 2x2 grid
+                        VStack(spacing: sectionSpacing) {
+                            HStack(spacing: 8) {
+                                VStack(spacing: 8) {
+                                    selectionButton(icon: "music.note.list", title: "My Music Library", subtitle: "Choose a song to edit", vPad: buttonVPad) {
+                                        requestMediaLibraryAccess()
                                     }
-                                    
-                                    Spacer()
-                                    
-                                    Image(systemName: "chevron.right")
-                                        .foregroundColor(.green.opacity(0.5))
+                                    selectionButton(icon: "rectangle.stack.fill", title: "My Ringtones", subtitle: "View saved ringtones", badge: !purchaseManager.isPremium ? "crown.fill" : nil, count: ringtoneLibrary.ringtones.count, vPad: buttonVPad) {
+                                        showingLibrary = true
+                                    }
                                 }
-                                .padding(.vertical, 12)
-                                .padding(.horizontal, 16)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.green.opacity(0.1))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                                )
+                                VStack(spacing: 8) {
+                                    selectionButton(icon: "folder.fill", title: "Import Audio File", subtitle: "Browse your files", vPad: buttonVPad) {
+                                        showingDocumentPicker = true
+                                    }
+                                    selectionButton(icon: "radio.fill", title: "World Radio", subtitle: "Stream worldwide stations", badge: !purchaseManager.isPremium ? "crown.fill" : nil, vPad: buttonVPad) {
+                                        showingRadio = true
+                                    }
+                                }
                             }
+                            .frame(maxWidth: maxContentWidth)
                             
-                            Button(action: { showingDocumentPicker = true }) {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "folder.fill")
-                                        .font(.title2)
-                                        .foregroundColor(.green)
-                                        .frame(width: 40)
-                                    
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Import Audio File")
-                                            .font(.headline)
-                                            .foregroundColor(.green)
-                                        Text("Browse your files")
-                                            .font(.caption)
-                                            .foregroundColor(.green.opacity(0.6))
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    Image(systemName: "chevron.right")
-                                        .foregroundColor(.green.opacity(0.5))
-                                }
-                                .padding(.vertical, 12)
-                                .padding(.horizontal, 16)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.green.opacity(0.1))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                                )
-                            }
-                        }
-                        .padding(.horizontal, geometry.size.width * 0.05)
-                        
-                        // Premium Status
-                        if !purchaseManager.isPremium {
-                            VStack(spacing: 12) {
-                                if purchaseManager.remainingFreeCreations > 0 {
-                                    HStack {
-                                        Image(systemName: "gift.fill")
-                                            .foregroundColor(.green)
-                                        Text("\(purchaseManager.remainingFreeCreations) Free Left")
-                                            .font(.subheadline)
-                                            .foregroundColor(.green)
-                                        Spacer()
-                                    }
-                                    .padding(.vertical, 12)
-                                    .padding(.horizontal, 16)
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.green.opacity(0.1))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                                    )
-                                }
-                                
+                            if !purchaseManager.isPremium {
                                 Button(action: { showingPremiumView = true }) {
                                     HStack {
                                         Image(systemName: "star.fill")
                                         Text("Upgrade to Premium")
                                         Spacer()
+                                        if purchaseManager.remainingFreeCreations > 0 {
+                                            Text("\(purchaseManager.remainingFreeCreations) Free Left")
+                                                .font(.caption2)
+                                                .foregroundColor(.black.opacity(0.7))
+                                        }
                                         Image(systemName: "chevron.right")
                                     }
-                                    .font(.headline)
+                                    .font(.subheadline.weight(.semibold))
                                     .foregroundColor(.black)
-                                    .padding(.vertical, 12)
-                                    .padding(.horizontal, 16)
-                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, buttonVPad)
+                                    .padding(.horizontal, 14)
+                                    .frame(maxWidth: maxContentWidth)
                                     .background(Color.green)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
                                 }
                             }
-                            .padding(.horizontal, geometry.size.width * 0.05)
                         }
-                        
-                        // Library button (Premium feature)
-                        Button(action: { showingLibrary = true }) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "rectangle.stack.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.green)
-                                    .frame(width: 40)
+                        .padding(.horizontal, max(hPad, 8))
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        // Portrait: vertical list with proportional spacing
+                        VStack(spacing: sectionSpacing) {
+                            VStack(spacing: max(6, geometry.size.height * 0.008)) {
+                                selectionButton(icon: "music.note.list", title: "My Music Library", subtitle: "Choose a song to edit", vPad: buttonVPad) {
+                                    requestMediaLibraryAccess()
+                                }
                                 
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack {
-                                        Text("My Ringtones")
-                                            .font(.headline)
-                                            .foregroundColor(.green)
-                                        if !purchaseManager.isPremium {
-                                            Image(systemName: "crown.fill")
+                                selectionButton(icon: "folder.fill", title: "Import Audio File", subtitle: "Browse your files", vPad: buttonVPad) {
+                                    showingDocumentPicker = true
+                                }
+                            }
+                            .frame(maxWidth: maxContentWidth)
+                            
+                            if !purchaseManager.isPremium {
+                                VStack(spacing: max(6, geometry.size.height * 0.008)) {
+                                    if purchaseManager.remainingFreeCreations > 0 {
+                                        HStack {
+                                            Image(systemName: "gift.fill")
                                                 .font(.caption)
-                                                .foregroundColor(.yellow)
-                                        }
-                                        if ringtoneLibrary.ringtones.count > 0 {
-                                            Text("(\(ringtoneLibrary.ringtones.count))")
+                                                .foregroundColor(.green)
+                                            Text("\(purchaseManager.remainingFreeCreations) Free Left")
                                                 .font(.caption)
-                                                .foregroundColor(.green.opacity(0.7))
+                                                .foregroundColor(.green)
+                                            Spacer()
                                         }
+                                        .padding(.vertical, buttonVPad * 0.8)
+                                        .padding(.horizontal, 14)
+                                        .frame(maxWidth: .infinity)
+                                        .background(Color.green.opacity(0.1))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                                        )
                                     }
-                                    Text("View saved ringtones")
-                                        .font(.caption)
-                                        .foregroundColor(.green.opacity(0.6))
+                                    
+                                    Button(action: { showingPremiumView = true }) {
+                                        HStack {
+                                            Image(systemName: "star.fill")
+                                            Text("Upgrade to Premium")
+                                            Spacer()
+                                            Image(systemName: "chevron.right")
+                                        }
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundColor(.black)
+                                        .padding(.vertical, buttonVPad)
+                                        .padding(.horizontal, 14)
+                                        .frame(maxWidth: .infinity)
+                                        .background(Color.green)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    }
                                 }
-                                
-                                Spacer()
-                                
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.green.opacity(0.5))
+                                .frame(maxWidth: maxContentWidth)
                             }
-                            .padding(.vertical, 12)
-                            .padding(.horizontal, 16)
-                            .frame(maxWidth: .infinity)
-                            .background(Color.green.opacity(0.1))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                            )
+                            
+                            selectionButton(icon: "rectangle.stack.fill", title: "My Ringtones", subtitle: "View saved ringtones", badge: !purchaseManager.isPremium ? "crown.fill" : nil, count: ringtoneLibrary.ringtones.count, vPad: buttonVPad) {
+                                showingLibrary = true
+                            }
+                            .frame(maxWidth: maxContentWidth)
+                            
+                            selectionButton(icon: "radio.fill", title: "World Radio", subtitle: "Stream worldwide stations", badge: !purchaseManager.isPremium ? "crown.fill" : nil, vPad: buttonVPad) {
+                                showingRadio = true
+                            }
+                            .frame(maxWidth: maxContentWidth)
                         }
-                        .padding(.horizontal, geometry.size.width * 0.05)
-                        
-                        Spacer(minLength: 20)
+                        .padding(.horizontal, hPad)
+                        .frame(maxWidth: .infinity)
                     }
-                    .frame(minHeight: geometry.size.height)
+                    
+                    Spacer()
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .ignoresSafeArea(edges: .top)  // Make selection screen ignore top safe area
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(edges: .top)
         }
+    }
+    
+    // Reusable compact selection button — vPad scales with screen
+    private func selectionButton(icon: String, title: String, subtitle: String, badge: String? = nil, count: Int = 0, vPad: CGFloat = 9, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.body)
+                    .foregroundColor(.green)
+                    .frame(width: 32)
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        Text(title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.green)
+                        if let badge = badge {
+                            Image(systemName: badge)
+                                .font(.caption2)
+                                .foregroundColor(.yellow)
+                        }
+                        if count > 0 {
+                            Text("(\(count))")
+                                .font(.caption2)
+                                .foregroundColor(.green.opacity(0.7))
+                        }
+                    }
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundColor(.green.opacity(0.6))
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.green.opacity(0.5))
+            }
+            .padding(.vertical, vPad)
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity)
+            .background(Color.green.opacity(0.1))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
+            )
+        }
+    }
+    
+    // Floating "Now Playing" bar — visible on all screens
+    @State private var marqueeOffset: CGFloat = 0
+    
+    private func nowPlayingFloatingBar(station: RadioStation) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+            
+            Button(action: { showingRadio = true }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "radio.fill")
+                        .font(.caption2)
+                        .foregroundColor(.green)
+                    
+                    Text("Now Playing: \(station.displayName)")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundColor(.green)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    if radioPlayerManager.isBuffering {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                            .scaleEffect(0.5)
+                            .frame(width: 16, height: 16)
+                    } else {
+                        Image(systemName: "waveform")
+                            .font(.caption2)
+                            .foregroundColor(.green.opacity(0.6))
+                    }
+                    
+                    Button(action: { radioPlayerManager.stop() }) {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.caption)
+                            .foregroundColor(.green.opacity(0.6))
+                    }
+                }
+                .padding(.vertical, 7)
+                .padding(.horizontal, 12)
+                .frame(maxWidth: 700)
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+            .background(Color.black)
+            .overlay(
+                Rectangle()
+                    .fill(Color.green.opacity(0.3))
+                    .frame(height: 1),
+                alignment: .top
+            )
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(edges: .bottom)
     }
     
     // MARK: - Editor Screen
     
     private var editorScreen: some View {
         GeometryReader { geometry in
+            let isLandscape = geometry.size.width > geometry.size.height
+            let isTablet = min(geometry.size.width, geometry.size.height) > 600
+            let maxContentWidth: CGFloat = isTablet ? 700 : .infinity
+            let hPad = isTablet ? max((geometry.size.width - 700) / 2, 16) : geometry.size.width * 0.04
+            let waveformHeight = isLandscape ? geometry.size.height * 0.2 : geometry.size.height * 0.12
+            let btnVPad = max(8, geometry.size.height * 0.012)
+            
             ZStack {
                 Color.black.ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    // Header
-                    HStack {
-                        Spacer()
-                        
-                        Text("Edit Ringtone")
-                            .font(.subheadline)
-                            .foregroundColor(.green)
-                        
-                        Spacer()
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 0)
-                    .padding(.bottom, 2)
-                    .background(Color.black)
-                    
-                    ScrollView {
-                        VStack(spacing: 12) {
-                            // Song title
-                            Text(selectedSongTitle)
+                    // Header — sits below safe area
+                    VStack(spacing: 0) {
+                        HStack {
+                            Spacer()
+                            Text("Create Your New Ringtone")
                                 .font(.subheadline)
                                 .foregroundColor(.green.opacity(0.7))
-                                .lineLimit(2)
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                        
+                        Rectangle()
+                            .fill(Color.green.opacity(0.2))
+                            .frame(height: 0.5)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .background(Color.black)
+                    .padding(.top, max(geometry.safeAreaInsets.top - 59, 0))
+                    .zIndex(10)
+                    
+                    ScrollView(showsIndicators: true) {
+                        VStack(spacing: max(6, geometry.size.height * 0.008)) {
+                            // Song title
+                            Text(selectedSongTitle)
+                                .font(.caption)
+                                .foregroundColor(.green.opacity(0.7))
+                                .lineLimit(1)
                                 .truncationMode(.middle)
-                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
                                 .padding(.horizontal)
                             
-                            // Waveform (orange)
+                            // Waveform
                             if let asset = audioAsset {
-                                VStack(spacing: 8) {
+                                VStack(spacing: 4) {
                                     WaveformView(
                                         audioAsset: asset,
                                         startTime: startTime,
@@ -462,15 +563,15 @@ struct ContentView: View {
                                         isPlaying: isPlaying,
                                         audioPlayer: audioPlayer
                                     )
-                                    .frame(height: min(120, geometry.size.height * 0.15))
+                                    .frame(height: max(60, waveformHeight))
                                     .frame(maxWidth: .infinity)
                                     .clipped()
                                     .background(Color.green.opacity(0.05))
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
+                                        RoundedRectangle(cornerRadius: 10)
                                             .stroke(Color.green.opacity(0.3), lineWidth: 1)
                                     )
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
                                     
                                     // Playback progress indicator
                                     PlaybackProgressView(
@@ -481,100 +582,89 @@ struct ContentView: View {
                                         }
                                     )
                                     
-                                    // Preview buttons
-                                    VStack(spacing: 8) {
-                                        HStack(spacing: 8) {
-                                            // Preview full song
-                                            Button(action: {
-                                                if isPlaying {
-                                                    stopPreview()
-                                                } else {
-                                                    playPreview()
-                                                }
-                                            }) {
-                                                HStack(spacing: 6) {
-                                                    Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
-                                                        .font(.body)
-                                                    Text(isPlaying ? "Stop" : "Full Song")
-                                                        .font(.caption)
-                                                }
-                                                .foregroundColor(.green)
-                                                .frame(maxWidth: .infinity)
-                                                .padding(.vertical, 10)
-                                                .background(Color.green.opacity(0.1))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 12)
-                                                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                                                )
+                                    // Preview buttons - all in one row
+                                    HStack(spacing: 6) {
+                                        // Preview full song
+                                        Button(action: {
+                                            if isPlaying {
+                                                stopPreview()
+                                            } else {
+                                                playPreview()
                                             }
-                                            
-                                            // Preview selected portion
-                                            Button(action: {
-                                                if isPlaying {
-                                                    stopPreview()
-                                                } else {
-                                                    playSelectedPortion()
-                                                }
-                                            }) {
-                                                HStack(spacing: 6) {
-                                                    Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
-                                                        .font(.body)
-                                                    Text(isPlaying ? "Stop" : "Selection")
-                                                        .font(.caption)
-                                                }
-                                                .foregroundColor(.orange)
-                                                .frame(maxWidth: .infinity)
-                                                .padding(.vertical, 10)
-                                                .background(Color.orange.opacity(0.1))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 12)
-                                                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                                                )
+                                        }) {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                                                    .font(.caption)
+                                                Text(isPlaying ? "Stop" : "Full")
+                                                    .font(.caption2)
                                             }
+                                            .foregroundColor(.green)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, btnVPad)
+                                            .background(Color.green.opacity(0.1))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                                            )
                                         }
                                         
-                                        // Preview with effects (Premium only) - Always visible
+                                        // Preview selected portion
+                                        Button(action: {
+                                            if isPlaying {
+                                                stopPreview()
+                                            } else {
+                                                playSelectedPortion()
+                                            }
+                                        }) {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                                                    .font(.caption)
+                                                Text(isPlaying ? "Stop" : "Selection")
+                                                    .font(.caption2)
+                                            }
+                                            .foregroundColor(.orange)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, btnVPad)
+                                            .background(Color.orange.opacity(0.1))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                                            )
+                                        }
+                                        
+                                        // Preview with effects (Premium only)
                                         if purchaseManager.isPremium {
                                             Button(action: {
                                                 if hasEffectsEnabled {
-                                                    // Effects enabled: preview with effects
                                                     if isPlaying {
                                                         stopPreview()
                                                     } else {
                                                         playPreviewWithEffects()
                                                     }
                                                 } else {
-                                                    // No effects: scroll to and expand Audio Effects panel
                                                     withAnimation {
                                                         showingAudioEffects = true
                                                     }
                                                 }
                                             }) {
-                                                HStack(spacing: 6) {
+                                                HStack(spacing: 4) {
                                                     if isPreviewingEffects {
                                                         ProgressView()
                                                             .progressViewStyle(CircularProgressViewStyle(tint: .purple))
-                                                            .scaleEffect(0.8)
-                                                        Text("Processing...")
-                                                            .font(.caption)
-                                                    } else if hasEffectsEnabled {
-                                                        Image(systemName: isPlaying ? "stop.circle.fill" : "waveform.circle.fill")
-                                                            .font(.body)
-                                                        Text(isPlaying ? "Stop" : "Preview with Effects")
-                                                            .font(.caption)
+                                                            .scaleEffect(0.7)
                                                     } else {
-                                                        Image(systemName: "wand.and.stars")
-                                                            .font(.body)
-                                                        Text("Apply Effects to Preview")
+                                                        Image(systemName: hasEffectsEnabled ? "waveform.circle.fill" : "wand.and.stars")
                                                             .font(.caption)
                                                     }
+                                                    Text(isPreviewingEffects ? "..." : "Effects")
+                                                        .font(.caption2)
                                                 }
                                                 .foregroundColor(hasEffectsEnabled ? .purple : .purple.opacity(0.7))
                                                 .frame(maxWidth: .infinity)
-                                                .padding(.vertical, 10)
+                                                .padding(.vertical, btnVPad)
                                                 .background(hasEffectsEnabled ? Color.purple.opacity(0.1) : Color.purple.opacity(0.05))
                                                 .overlay(
-                                                    RoundedRectangle(cornerRadius: 12)
+                                                    RoundedRectangle(cornerRadius: 8)
                                                         .stroke(hasEffectsEnabled ? Color.purple.opacity(0.3) : Color.purple.opacity(0.2), lineWidth: 1)
                                                 )
                                             }
@@ -582,7 +672,7 @@ struct ContentView: View {
                                         }
                                     }
                                 }
-                                .padding(.horizontal, geometry.size.width * 0.05)
+                                .padding(.horizontal, hPad)
                             }
                             
                             // Audio Effects (Premium feature)
@@ -592,20 +682,20 @@ struct ContentView: View {
                                 isPremium: purchaseManager.isPremium,
                                 onUpgrade: { showingPremiumView = true }
                             )
-                            .padding(.horizontal, geometry.size.width * 0.05)
+                            .padding(.horizontal, hPad)
                             
                             // Time controls
-                            VStack(spacing: 8) {
-                                HStack(spacing: geometry.size.width * 0.1) {
+                            VStack(spacing: 4) {
+                                HStack {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Start")
                                             .font(.caption2)
                                             .foregroundColor(.green.opacity(0.7))
                                         Text(startTimeText)
-                                            .font(.callout)
+                                            .font(.caption)
                                             .foregroundColor(.primary)
-                                            .frame(width: geometry.size.width * 0.18)
-                                            .padding(.vertical, 6)
+                                            .frame(minWidth: 60, maxWidth: 100)
+                                            .padding(.vertical, 5)
                                             .background(Color.white)
                                             .clipShape(RoundedRectangle(cornerRadius: 6))
                                             .overlay(
@@ -626,10 +716,10 @@ struct ContentView: View {
                                             .font(.caption2)
                                             .foregroundColor(.green.opacity(0.7))
                                         Text(endTimeText)
-                                            .font(.callout)
+                                            .font(.caption)
                                             .foregroundColor(.primary)
-                                            .frame(width: geometry.size.width * 0.18)
-                                            .padding(.vertical, 6)
+                                            .frame(minWidth: 60, maxWidth: 100)
+                                            .padding(.vertical, 5)
                                             .background(Color.white)
                                             .clipShape(RoundedRectangle(cornerRadius: 6))
                                             .overlay(
@@ -658,65 +748,90 @@ struct ContentView: View {
                                 }
                             }
                             .padding(.horizontal)
-                            .padding(.vertical, 10)
+                            .padding(.vertical, 8)
                             .frame(maxWidth: .infinity)
                             .background(Color.green.opacity(0.1))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12)
+                                RoundedRectangle(cornerRadius: 10)
                                     .stroke(Color.green.opacity(0.3), lineWidth: 1)
                             )
-                            .padding(.horizontal, geometry.size.width * 0.05)
+                            .padding(.horizontal, hPad)
                             
-                            // Export button
-                            Button(action: { handleExport() }) {
-                                HStack {
-                                    if isExporting {
-                                        ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: .black))
-                                        Text("Creating...")
-                                    } else {
-                                        Image(systemName: "scissors")
-                                        Text("Create Ringtone")
+                            // Export + Back in a row
+                            HStack(spacing: 8) {
+                                // Back button
+                                Button(action: {
+                                    isAudioLoaded = false
+                                    selectedAudioURL = nil
+                                    audioAsset = nil
+                                    selectedSongTitle = "No song selected"
+                                    stopPreview()
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "chevron.left")
+                                            .font(.caption)
+                                        Text("Back")
+                                            .font(.caption)
+                                            .fontWeight(.medium)
                                     }
+                                    .foregroundColor(.green)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, btnVPad)
+                                    .background(Color.green.opacity(0.1))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                                    )
                                 }
-                                .font(.subheadline)
-                                .foregroundColor(.black)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(Color.green)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                            }
-                            .disabled(isExporting || (endTime - startTime) > maxRingtoneDuration)
-                            .padding(.horizontal, geometry.size.width * 0.05)
-                            
-                            // Back button - centered below Create Ringtone
-                            Button(action: {
-                                isAudioLoaded = false
-                                selectedAudioURL = nil
-                                audioAsset = nil
-                                selectedSongTitle = "No song selected"
-                                stopPreview()
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "chevron.left")
-                                    Text("Back to Selection")
+                                
+                                // Export button
+                                Button(action: { handleExport() }) {
+                                    HStack(spacing: 4) {
+                                        if isExporting {
+                                            ProgressView()
+                                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                                                .scaleEffect(0.8)
+                                            Text("Creating...")
+                                                .font(.caption)
+                                        } else {
+                                            Image(systemName: "scissors")
+                                                .font(.caption)
+                                            Text("Create Ringtone")
+                                                .font(.caption)
+                                                .fontWeight(.bold)
+                                        }
+                                    }
+                                    .foregroundColor(.black)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, btnVPad)
+                                    .background(Color.green)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
                                 }
-                                .font(.callout)
-                                .foregroundColor(.green)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(Color.green.opacity(0.1))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                                )
+                                .disabled(isExporting || (endTime - startTime) > maxRingtoneDuration)
                             }
-                            .padding(.horizontal, geometry.size.width * 0.05)
-                            
-                            Spacer(minLength: 10)
+                            .padding(.horizontal, hPad)
                         }
+                        .frame(maxWidth: maxContentWidth)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, max(4, geometry.size.height * 0.005))
+                        .padding(.bottom, max(8, geometry.size.height * 0.01))
                     }
+                    .ignoresSafeArea(edges: .bottom)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                
+                // Scroll indicator line on right side
+                VStack {
+                    Spacer()
+                        .frame(height: 80)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.green.opacity(0.3))
+                        .frame(width: 3, height: 140)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, 4)
+                .allowsHitTesting(false)
                 
                 // Success overlay - appears on top
                 if exportedFileURL != nil {
@@ -840,8 +955,10 @@ struct ContentView: View {
                     }
                 }
             }
-            .ignoresSafeArea(edges: .top)  // Make entire editor screen ignore top safe area
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(edges: [.top, .bottom])
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.easeInOut(duration: 0.3), value: showingNumberPad)
     }
     
@@ -1341,4 +1458,22 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 #Preview {
     ContentView(purchaseManager: PurchaseManager())
+}
+
+// Preview showing the editor screen directly
+#Preview("Editor Screen") {
+    @Previewable @State var purchaseManager = PurchaseManager()
+    @Previewable @State var showingSplash = false
+    @Previewable @State var isAudioLoaded = true
+    @Previewable @State var selectedSongTitle = "My Awesome Song.mp3"
+    @Previewable @State var audioDuration: TimeInterval = 180.0
+    @Previewable @State var startTime: Double = 0
+    @Previewable @State var endTime: Double = 30
+    @Previewable @State var startTimeText = "0:00"
+    @Previewable @State var endTimeText = "0:30"
+    
+    ContentView(purchaseManager: purchaseManager)
+        .onAppear {
+            // This will show the editor screen in preview
+        }
 }

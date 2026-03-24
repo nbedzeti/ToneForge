@@ -38,10 +38,10 @@ struct CustomNumberPad: View {
             
             // Instruction label
             VStack(spacing: 4) {
-                Text("Format: M:SS")
+                Text("Format: M:SS or MM:SS or MMM:SS")
                     .font(.caption)
                     .foregroundColor(.green)
-                Text("Example: 1:25 = 1 min 25 sec")
+                Text("Example: 128:30 = 128 min 30 sec")
                     .font(.caption2)
                     .foregroundColor(.green.opacity(0.7))
             }
@@ -91,8 +91,8 @@ struct CustomNumberPad: View {
         default:
             // Add digit based on current format
             if !text.contains(":") {
-                // Before colon - allow up to 2 digits for minutes
-                if text.count < 2 {
+                // Before colon - allow up to 3 digits for minutes (supports 999 min)
+                if text.count < 3 {
                     text += button
                 }
             } else {

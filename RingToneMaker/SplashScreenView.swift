@@ -19,6 +19,8 @@ struct SplashScreenView: View {
             Color.black.ignoresSafeArea()
             
             VStack(spacing: 20) {
+                Spacer()
+                
                 // Animated waveform icon
                 Image(systemName: "waveform.circle.fill")
                     .font(.system(size: 100))
@@ -32,8 +34,12 @@ struct SplashScreenView: View {
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundColor(.green)
                     .opacity(opacity)
+                
+                Spacer()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             // Animate icon scale and opacity
             withAnimation(.easeOut(duration: 0.8)) {

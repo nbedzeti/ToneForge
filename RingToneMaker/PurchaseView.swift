@@ -2,7 +2,7 @@
 //  PurchaseView.swift
 //  RingToneMaker
 //
-//  Created on 1/18/26.
+//  Full-screen premium welcome page
 //
 
 import SwiftUI
@@ -15,170 +15,297 @@ struct PurchaseView: View {
     @State private var selectedProductID: String?
     @State private var showingError = false
     @State private var isPurchasing = false
+    @State private var currentPage = 0
+    @State private var marqueeOffset: CGFloat = 0
+    
+    private let features: [(icon: String, title: String, subtitle: String)] = [
+        ("infinity", "Unlimited Ringtones", "Create as many as you want, no limits"),
+        ("sparkles", "Premium Effects", "Fade, reverb, EQ and more"),
+        ("waveform", "Audio Normalization", "Perfect volume every time"),
+        ("nosign", "No Ads", "Clean, distraction-free experience")
+    ]
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color.black.ignoresSafeArea()
+        ZStack {
+            // Background
+            Color.black.ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Fixed top bar with solid background
+                VStack(spacing: 0) {
+                    // Marquee ticker banner - in safe area zone
+                    if !purchaseManager.isPremium {
+                        marqueeTickerBanner
+                            .padding(.top, 6)
+                    }
+                    
+                    // Back button - below marquee where taps work
+                    HStack {
+                        Button(action: { dismiss() }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                    .font(.caption)
+                                Text("Back")
+                                    .font(.caption)
+                            }
+                            .foregroundColor(.green.opacity(0.6))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .contentShape(Rectangle())
+                        }
+                        Spacer()
+                    }
+                }
+                .background(Color.black)
+                .zIndex(10)
                 
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Header
-                        headerSection
+                ScrollView(showsIndicators: true) {
+                    VStack(spacing: 16) {
+                        // Hero section
+                        heroSection
                         
-                        // Free tier status
-                        if !purchaseManager.isPremium {
-                            freeStatusSection
-                        }
+                        // Feature carousel
+                        featureCarousel
                         
-                        // Products
+                        // Subscription plans
                         if purchaseManager.products.isEmpty {
-                            loadingSection
+                            if purchaseManager.isLoading {
+                                loadingSection
+                            } else {
+                                staticPlansSection
+                            }
                         } else {
-                            productsSection
+                            plansSection
                         }
-                        
-                        // Features
-                        featuresSection
                         
                         // Restore purchases
                         restoreButton
                         
                         // Legal
                         legalSection
+                        
+                        Color.clear.frame(height: 20)
                     }
-                    .padding()
-                }
-            }
-            .navigationTitle("Upgrade to Premium")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbarBackground(Color.black, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .foregroundColor(.green)
-                }
-            }
-            .alert("Error", isPresented: $showingError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                if let error = purchaseManager.errorMessage {
-                    Text(error)
+                    .frame(maxWidth: 600)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 12)
                 }
             }
         }
         .preferredColorScheme(.dark)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(edges: .top)
+        .alert("Error", isPresented: $showingError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            if let error = purchaseManager.errorMessage {
+                Text(error)
+            }
+        }
     }
     
-    // MARK: - Header Section
+    // MARK: - Hero Section
     
-    private var headerSection: some View {
+    private var heroSection: some View {
         VStack(spacing: 12) {
-            Image(systemName: "crown.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.green)
+            // Animated crown icon
+            ZStack {
+                Circle()
+                    .fill(Color.green.opacity(0.1))
+                    .frame(width: 90, height: 90)
+                
+                Circle()
+                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                    .frame(width: 90, height: 90)
+                
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(.green)
+            }
             
-            Text("Unlock Unlimited Ringtones")
-                .font(.title2)
+            Text("Go Premium")
+                .font(.largeTitle)
                 .fontWeight(.bold)
                 .foregroundColor(.green)
-                .multilineTextAlignment(.center)
             
-            Text("Create as many custom ringtones as you want with no ads")
+            Text("Unlock the full power of ToneForge Studio")
                 .font(.subheadline)
                 .foregroundColor(.green.opacity(0.7))
                 .multilineTextAlignment(.center)
         }
-        .padding(.top)
+        .padding(.top, 8)
     }
     
-    // MARK: - Free Status Section
+    // MARK: - Feature Carousel
     
-    private var freeStatusSection: some View {
+    private var featureCarousel: some View {
         VStack(spacing: 12) {
-            if purchaseManager.remainingFreeCreations > 0 {
-                HStack {
-                    Image(systemName: "gift.fill")
-                        .foregroundColor(.blue)
-                    Text("\(purchaseManager.remainingFreeCreations) free ringtones remaining")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                }
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(12)
-            }
-            
-            // Show upgrade message when free tier is used
-            if !purchaseManager.isPremium && purchaseManager.remainingFreeCreations == 0 {
-                VStack(spacing: 12) {
-                    HStack {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(.orange)
-                        Text("Free tier used")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
+            TabView(selection: $currentPage) {
+                ForEach(0..<features.count, id: \.self) { index in
+                    VStack(spacing: 10) {
+                        Image(systemName: features[index].icon)
+                            .font(.system(size: 32))
+                            .foregroundColor(.green)
+                        
+                        Text(features[index].title)
+                            .font(.headline)
+                            .foregroundColor(.green)
+                        
+                        Text(features[index].subtitle)
+                            .font(.caption)
+                            .foregroundColor(.green.opacity(0.6))
+                            .multilineTextAlignment(.center)
                     }
-                    
-                    Text("Upgrade to Premium for unlimited ringtones")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(Color.orange.opacity(0.1))
-                .cornerRadius(12)
-            }
-        }
-    }
-    
-    // MARK: - Products Section
-    
-    private var productsSection: some View {
-        VStack(spacing: 16) {
-            ForEach(purchaseManager.products, id: \.id) { product in
-                ProductCard(
-                    product: product,
-                    isSelected: selectedProductID == product.id,
-                    isPurchasing: isPurchasing,
-                    badge: badgeText(for: product),
-                    savings: savingsText(for: product)
-                ) {
-                    selectedProductID = product.id
-                    Task {
-                        await purchaseProduct(product)
-                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .tag(index)
                 }
             }
-        }
-    }
-    
-    // MARK: - Features Section
-    
-    private var featuresSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Premium Features")
-                .font(.headline)
-                .foregroundColor(.green)
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(height: 120)
             
-            FeatureRow(icon: "infinity", title: "Unlimited Ringtones", description: "Create as many as you want")
-            FeatureRow(icon: "sparkles", title: "All Premium Effects", description: "Fade, reverb, EQ, and more")
-            FeatureRow(icon: "waveform", title: "Audio Normalization", description: "Perfect volume levels")
-            FeatureRow(icon: "heart.fill", title: "Support Development", description: "Help us build more great features")
+            // Page dots
+            HStack(spacing: 6) {
+                ForEach(0..<features.count, id: \.self) { index in
+                    Circle()
+                        .fill(currentPage == index ? Color.green : Color.green.opacity(0.3))
+                        .frame(width: 6, height: 6)
+                }
+            }
         }
-        .padding()
-        .background(Color.green.opacity(0.1))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.green.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.green.opacity(0.15), lineWidth: 1)
+                )
         )
-        .cornerRadius(12)
+    }
+    
+    // MARK: - Marquee Ticker Banner
+    
+    private var marqueeText: String {
+        if purchaseManager.remainingFreeCreations > 0 {
+            return "🎁 \(purchaseManager.remainingFreeCreations) free ringtones remaining  •  Upgrade for unlimited access  •  "
+        } else {
+            return "⚠️ Free tier used — upgrade now for unlimited ringtones  •  Go Premium today  •  "
+        }
+    }
+    
+    private var marqueeColor: Color {
+        purchaseManager.remainingFreeCreations > 0 ? .green : .orange
+    }
+    
+    private var marqueeTickerBanner: some View {
+        GeometryReader { geo in
+            let textWidth: CGFloat = CGFloat(marqueeText.count) * 7.5
+            let totalWidth = textWidth * 2
+            
+            HStack(spacing: 0) {
+                Text(marqueeText)
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundColor(marqueeColor)
+                Text(marqueeText)
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundColor(marqueeColor)
+            }
+            .fixedSize()
+            .offset(x: marqueeOffset)
+            .onAppear {
+                marqueeOffset = 0
+                withAnimation(.linear(duration: Double(marqueeText.count) * 0.18).repeatForever(autoreverses: false)) {
+                    marqueeOffset = -textWidth
+                }
+            }
+        }
+        .frame(height: 20)
+        .clipped()
+        .background(marqueeColor.opacity(0.06))
+    }
+    
+    // MARK: - Plans Section
+    
+    private var plansSection: some View {
+        VStack(spacing: 12) {
+            // Monthly + Yearly side by side
+            HStack(spacing: 12) {
+                ForEach(purchaseManager.products.filter { $0.id != PurchaseManager.ProductID.lifetime }, id: \.id) { product in
+                    PlanTile(
+                        product: product,
+                        isSelected: selectedProductID == product.id,
+                        isPurchasing: isPurchasing,
+                        badge: badgeText(for: product),
+                        savings: savingsText(for: product)
+                    ) {
+                        selectedProductID = product.id
+                        Task { await purchaseProduct(product) }
+                    }
+                }
+            }
+            
+            // Lifetime full-width
+            if let lifetime = purchaseManager.products.first(where: { $0.id == PurchaseManager.ProductID.lifetime }) {
+                PlanTile(
+                    product: lifetime,
+                    isSelected: selectedProductID == lifetime.id,
+                    isPurchasing: isPurchasing,
+                    badge: badgeText(for: lifetime),
+                    savings: nil
+                ) {
+                    selectedProductID = lifetime.id
+                    Task { await purchaseProduct(lifetime) }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Static Plans Fallback
+    
+    private var staticPlansSection: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                StaticPlanTile(
+                    name: "Monthly",
+                    price: "$4.99",
+                    period: "/mo",
+                    icon: "calendar",
+                    badge: nil
+                ) {
+                    Task { await purchaseManager.loadProducts() }
+                }
+                
+                StaticPlanTile(
+                    name: "Yearly",
+                    price: "$29.99",
+                    period: "/yr",
+                    icon: "star.fill",
+                    badge: "BEST VALUE"
+                ) {
+                    Task { await purchaseManager.loadProducts() }
+                }
+            }
+            
+            StaticPlanTile(
+                name: "Lifetime",
+                price: "$49.99",
+                period: "one-time",
+                icon: "infinity",
+                badge: "MOST POPULAR"
+            ) {
+                Task { await purchaseManager.loadProducts() }
+            }
+            
+            if purchaseManager.errorMessage != nil {
+                Text("Tap a plan to retry connecting to the App Store")
+                    .font(.caption2)
+                    .foregroundColor(.orange.opacity(0.6))
+                    .multilineTextAlignment(.center)
+            }
+        }
     }
     
     // MARK: - Restore Button
@@ -193,92 +320,99 @@ struct PurchaseView: View {
             }
         }) {
             Text("Restore Purchases")
-                .font(.subheadline)
-                .foregroundColor(.green)
+                .font(.caption)
+                .foregroundColor(.green.opacity(0.6))
         }
         .disabled(purchaseManager.isLoading)
+        .padding(.top, 4)
     }
     
     // MARK: - Legal Section
     
     private var legalSection: some View {
-        VStack(spacing: 12) {
-            // Subscription terms
-            VStack(spacing: 8) {
-                Text("Subscription Information")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.green)
-                
-                Text("• Premium Monthly: $4.99/month, auto-renews monthly")
-                    .font(.caption2)
-                    .foregroundColor(.green.opacity(0.7))
-                
-                Text("• Premium Yearly: $29.99/year, auto-renews yearly")
-                    .font(.caption2)
-                    .foregroundColor(.green.opacity(0.7))
-                
-                Text("• Premium Lifetime: $49.99 one-time payment")
-                    .font(.caption2)
-                    .foregroundColor(.green.opacity(0.7))
+        VStack(spacing: 10) {
+            VStack(spacing: 4) {
+                Text("Premium Monthly: $4.99/month, auto-renews")
+                Text("Premium Yearly: $29.99/year, auto-renews")
+                Text("Premium Lifetime: $49.99 one-time")
             }
+            .font(.caption2)
+            .foregroundColor(.green.opacity(0.4))
             .multilineTextAlignment(.center)
-            .padding(.vertical, 8)
             
-            Text("Payment will be charged to your Apple ID at confirmation of purchase. Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. Manage subscriptions in Settings → [Your Name] → Subscriptions.")
+            Text("Payment charged to Apple ID at purchase. Auto-renews unless cancelled 24h before period ends. Manage in Settings → Subscriptions.")
                 .font(.caption2)
-                .foregroundColor(.green.opacity(0.5))
+                .foregroundColor(.green.opacity(0.35))
                 .multilineTextAlignment(.center)
             
-            // Legal links
             HStack(spacing: 16) {
                 Link("Privacy Policy", destination: URL(string: "https://nbedzeti.github.io/ToneForge/privacy.html")!)
                     .font(.caption2)
-                    .foregroundColor(.green)
+                    .foregroundColor(.green.opacity(0.5))
                 
                 Text("•")
                     .font(.caption2)
-                    .foregroundColor(.green.opacity(0.5))
+                    .foregroundColor(.green.opacity(0.3))
                 
                 Link("Terms of Use", destination: URL(string: "https://nbedzeti.github.io/ToneForge/terms.html")!)
                     .font(.caption2)
-                    .foregroundColor(.green)
+                    .foregroundColor(.green.opacity(0.5))
             }
         }
-        .padding(.top)
     }
     
     // MARK: - Loading Section
     
     private var loadingSection: some View {
         VStack(spacing: 16) {
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: .green))
-                .scaleEffect(1.2)
-            Text("Loading products...")
+            if purchaseManager.isLoading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                Text("Loading plans...")
+                    .font(.subheadline)
+                    .foregroundColor(.green.opacity(0.7))
+            } else if let error = purchaseManager.errorMessage {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.title2)
+                    .foregroundColor(.orange)
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.orange.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                
+                Button("Try Again") {
+                    Task { await purchaseManager.loadProducts() }
+                }
                 .font(.subheadline)
-                .foregroundColor(.green.opacity(0.7))
-            
-            Text("Note: In-app purchases require a real device and App Store configuration")
-                .font(.caption)
-                .foregroundColor(.green.opacity(0.5))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+                .fontWeight(.semibold)
+                .foregroundColor(.black)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(Color.green)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            } else {
+                Text("No plans available")
+                    .font(.subheadline)
+                    .foregroundColor(.green.opacity(0.7))
+                
+                Button("Retry") {
+                    Task { await purchaseManager.loadProducts() }
+                }
+                .font(.subheadline)
+                .foregroundColor(.green)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .padding(.vertical, 24)
     }
     
-    // MARK: - Helper Methods
+    // MARK: - Helpers
     
     private func badgeText(for product: Product) -> String? {
         switch product.id {
-        case PurchaseManager.ProductID.yearly:
-            return "BEST VALUE"
-        case PurchaseManager.ProductID.lifetime:
-            return "MOST POPULAR"
-        default:
-            return nil
+        case PurchaseManager.ProductID.yearly: return "BEST VALUE"
+        case PurchaseManager.ProductID.lifetime: return "MOST POPULAR"
+        default: return nil
         }
     }
     
@@ -294,12 +428,13 @@ struct PurchaseView: View {
         
         do {
             let transaction = try await purchaseManager.purchase(product)
-            
             if transaction != nil {
-                // Purchase successful
+                isPurchasing = false
                 dismiss()
+                return
             }
         } catch {
+            purchaseManager.errorMessage = error.localizedDescription
             showingError = true
         }
         
@@ -307,136 +442,185 @@ struct PurchaseView: View {
     }
 }
 
-// MARK: - Product Card
+// MARK: - PlanTile Component
 
-struct ProductCard: View {
+struct PlanTile: View {
     let product: Product
     let isSelected: Bool
     let isPurchasing: Bool
     let badge: String?
     let savings: String?
-    let action: () -> Void
+    let onTap: () -> Void
+    
+    private var isLifetime: Bool {
+        product.id == PurchaseManager.ProductID.lifetime
+    }
+    
+    private var periodLabel: String {
+        if isLifetime { return "one-time" }
+        if let sub = product.subscription {
+            switch sub.subscriptionPeriod.unit {
+            case .month: return "/mo"
+            case .year: return "/yr"
+            default: return ""
+            }
+        }
+        return ""
+    }
+    
+    private var icon: String {
+        switch product.id {
+        case PurchaseManager.ProductID.monthly: return "calendar"
+        case PurchaseManager.ProductID.yearly: return "star.fill"
+        case PurchaseManager.ProductID.lifetime: return "infinity"
+        default: return "crown.fill"
+        }
+    }
     
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 12) {
-                // Badge
+        Button(action: onTap) {
+            VStack(spacing: isLifetime ? 10 : 8) {
+                // Badge ribbon
                 if let badge = badge {
                     Text(badge)
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 4)
-                        .background(Color.blue)
-                        .cornerRadius(8)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.green)
+                        .clipShape(Capsule())
+                } else {
+                    // Spacer to keep alignment consistent
+                    Color.clear.frame(height: 17)
                 }
                 
-                // Product name
+                // Icon
+                Image(systemName: icon)
+                    .font(.system(size: isLifetime ? 28 : 24))
+                    .foregroundColor(.green)
+                
+                // Plan name
                 Text(product.displayName)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.green)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 
                 // Price
                 Text(product.displayPrice)
-                    .font(.title2)
+                    .font(.title3)
                     .fontWeight(.bold)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.green)
                 
-                // Period
-                if let subscription = product.subscription {
-                    let period = subscriptionPeriodText(subscription.subscriptionPeriod)
-                    Text(period)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
+                Text(periodLabel)
+                    .font(.caption2)
+                    .foregroundColor(.green.opacity(0.5))
                 
                 // Savings
                 if let savings = savings {
                     Text(savings)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.green)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.green.opacity(0.7))
                 }
                 
-                // Purchase button
-                if isPurchasing {
+                // CTA button
+                if isPurchasing && isSelected {
                     ProgressView()
-                        .padding(.top, 4)
+                        .progressViewStyle(CircularProgressViewStyle(tint: .green))
+                        .frame(height: 32)
                 } else {
-                    Text("Subscribe")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
+                    Text(isLifetime ? "Buy Now" : "Subscribe")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
-                        .background(Color.blue)
-                        .cornerRadius(8)
-                        .padding(.top, 4)
+                        .background(Color.green)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
             }
-            .padding()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
             .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white)
-                    .shadow(color: isSelected ? Color.blue.opacity(0.3) : Color.black.opacity(0.1), radius: 8)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+                    .fill(isSelected ? Color.green.opacity(0.12) : Color.green.opacity(0.04))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(isSelected ? Color.green.opacity(0.6) : Color.green.opacity(0.15), lineWidth: isSelected ? 1.5 : 1)
+                    )
             )
         }
-        .buttonStyle(PlainButtonStyle())
-        .disabled(isPurchasing)
-    }
-    
-    private func subscriptionPeriodText(_ period: Product.SubscriptionPeriod) -> String {
-        let value = period.value
-        let unit = period.unit
-        
-        switch unit {
-        case .day:
-            return value == 1 ? "per day" : "per \(value) days"
-        case .week:
-            return value == 1 ? "per week" : "per \(value) weeks"
-        case .month:
-            return value == 1 ? "per month" : "per \(value) months"
-        case .year:
-            return value == 1 ? "per year" : "per \(value) years"
-        @unknown default:
-            return ""
-        }
+        .buttonStyle(.plain)
     }
 }
 
-// MARK: - Feature Row
+// MARK: - StaticPlanTile (fallback when products don't load)
 
-struct FeatureRow: View {
+struct StaticPlanTile: View {
+    let name: String
+    let price: String
+    let period: String
     let icon: String
-    let title: String
-    let description: String
+    let badge: String?
+    let onTap: () -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(.green)
-                .frame(width: 30)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline)
+        Button(action: onTap) {
+            VStack(spacing: 8) {
+                if let badge = badge {
+                    Text(badge)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.green)
+                        .clipShape(Capsule())
+                } else {
+                    Color.clear.frame(height: 17)
+                }
+                
+                Image(systemName: icon)
+                    .font(.system(size: 24))
+                    .foregroundColor(.green)
+                
+                Text(name)
+                    .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundColor(.green)
                 
-                Text(description)
+                Text(price)
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(.green)
+                
+                Text(period)
+                    .font(.caption2)
+                    .foregroundColor(.green.opacity(0.5))
+                
+                Text(name == "Lifetime" ? "Buy Now" : "Subscribe")
                     .font(.caption)
-                    .foregroundColor(.green.opacity(0.7))
+                    .fontWeight(.bold)
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color.green)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-            
-            Spacer()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.green.opacity(0.04))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.green.opacity(0.15), lineWidth: 1)
+                    )
+            )
         }
+        .buttonStyle(.plain)
     }
 }
 

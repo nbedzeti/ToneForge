@@ -39,11 +39,12 @@ struct RingtoneLibraryView: View {
             .toolbarBackground(Color.black, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Text("‹ Back")
+                            .font(.body)
+                            .foregroundColor(.green)
                     }
-                    .foregroundColor(.green)
                 }
             }
         }

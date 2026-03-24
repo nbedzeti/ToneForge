@@ -17,7 +17,7 @@ class PurchaseManager {
     // MARK: - Testing Flag
     
     /// Set to true to enable premium features for testing (REMOVE BEFORE PRODUCTION!)
-    private let enablePremiumForTesting = false // ⚠️ MUST BE FALSE FOR PRODUCTION
+    private let enablePremiumForTesting = true // ⚠️ MUST BE FALSE FOR PRODUCTION
     
     // MARK: - Published Properties
     
@@ -181,9 +181,14 @@ class PurchaseManager {
                 return index1 < index2
             }
             
-            print("✅ Loaded \(products.count) products")
-            for product in products {
-                print("  - \(product.displayName): \(product.displayPrice)")
+            if products.isEmpty {
+                errorMessage = "No products available. Please check your App Store Connect configuration."
+                print("⚠️ No products returned from App Store")
+            } else {
+                print("✅ Loaded \(products.count) products")
+                for product in products {
+                    print("  - \(product.displayName): \(product.displayPrice)")
+                }
             }
             
         } catch {

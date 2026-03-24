@@ -174,52 +174,68 @@ struct WaveformView: View {
             throw NSError(domain: "WaveformView", code: 1, userInfo: [NSLocalizedDescriptionKey: "No audio track found"])
         }
         
-        let reader = try AVAssetReader(asset: asset)
-        let outputSettings: [String: Any] = [
-            AVFormatIDKey: kAudioFormatLinearPCM,
-            AVLinearPCMBitDepthKey: 16,
-            AVLinearPCMIsBigEndianKey: false,
-            AVLinearPCMIsFloatKey: false,
-            AVLinearPCMIsNonInterleaved: false
-        ]
+        let duration = try await asset.load(.duration)
+        let totalSeconds = CMTimeGetSeconds(duration)
         
-        let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
-        reader.add(output)
-        reader.startReading()
-        
+        // Read small time slices spread across the file
+        // Each slice is ~0.1 seconds — total memory stays tiny
+        let sliceDuration: Double = 0.1
+        let sliceInterval = totalSeconds / Double(sampleCount)
         var samples: [Float] = []
-        var allSamples: [Int16] = []
-        
-        while let sampleBuffer = output.copyNextSampleBuffer() {
-            if let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) {
-                let length = CMBlockBufferGetDataLength(blockBuffer)
-                var data = Data(count: length)
-                
-                data.withUnsafeMutableBytes { bytes in
-                    CMBlockBufferCopyDataBytes(blockBuffer, atOffset: 0, dataLength: length, destination: bytes.baseAddress!)
-                }
-                
-                let int16Samples = data.withUnsafeBytes {
-                    Array(UnsafeBufferPointer<Int16>(start: $0.baseAddress?.assumingMemoryBound(to: Int16.self), count: length / MemoryLayout<Int16>.size))
-                }
-                
-                allSamples.append(contentsOf: int16Samples)
-            }
-        }
-        
-        // Downsample to desired sample count
-        let samplesPerBucket = max(1, allSamples.count / sampleCount)
         
         for i in 0..<sampleCount {
-            let start = i * samplesPerBucket
-            let end = min(start + samplesPerBucket, allSamples.count)
+            let sliceStart = Double(i) * sliceInterval
+            let sliceEnd = min(sliceStart + sliceDuration, totalSeconds)
+            let timeRange = CMTimeRange(
+                start: CMTime(seconds: sliceStart, preferredTimescale: 44100),
+                end: CMTime(seconds: sliceEnd, preferredTimescale: 44100)
+            )
             
-            if start < allSamples.count {
-                let bucket = allSamples[start..<end]
-                let average = bucket.map { abs(Float($0)) }.reduce(0, +) / Float(bucket.count)
-                let normalized = average / Float(Int16.max)
-                samples.append(normalized)
-            } else {
+            do {
+                let reader = try AVAssetReader(asset: asset)
+                let outputSettings: [String: Any] = [
+                    AVFormatIDKey: kAudioFormatLinearPCM,
+                    AVLinearPCMBitDepthKey: 16,
+                    AVLinearPCMIsBigEndianKey: false,
+                    AVLinearPCMIsFloatKey: false,
+                    AVLinearPCMIsNonInterleaved: false
+                ]
+                
+                let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
+                reader.timeRange = timeRange
+                reader.add(output)
+                reader.startReading()
+                
+                var sliceSum: Float = 0
+                var sliceCount: Int = 0
+                
+                while let sampleBuffer = output.copyNextSampleBuffer() {
+                    guard let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else { continue }
+                    let length = CMBlockBufferGetDataLength(blockBuffer)
+                    var data = Data(count: length)
+                    
+                    data.withUnsafeMutableBytes { bytes in
+                        CMBlockBufferCopyDataBytes(blockBuffer, atOffset: 0, dataLength: length, destination: bytes.baseAddress!)
+                    }
+                    
+                    data.withUnsafeBytes { rawBuffer in
+                        let count = length / MemoryLayout<Int16>.size
+                        let ptr = rawBuffer.baseAddress!.assumingMemoryBound(to: Int16.self)
+                        for j in 0..<count {
+                            sliceSum += abs(Float(ptr[j]))
+                            sliceCount += 1
+                        }
+                    }
+                }
+                
+                reader.cancelReading()
+                
+                if sliceCount > 0 {
+                    samples.append((sliceSum / Float(sliceCount)) / Float(Int16.max))
+                } else {
+                    samples.append(0)
+                }
+            } catch {
                 samples.append(0)
             }
         }

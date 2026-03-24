@@ -18,6 +18,13 @@
 	<string>APPL</string>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>ToneForge Studio needs access to your music library to select songs for creating ringtones.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ToneForge Studio uses the microphone to capture audio from radio streams for creating ringtones.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoadsInMedia</key>
+		<true/>
+	</dict>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>

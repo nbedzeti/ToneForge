@@ -21,6 +21,10 @@
 		A1000035000000000000001 /* AudioEffectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000036000000000000001 /* AudioEffectsView.swift */; };
 		A1000037000000000000001 /* RingtoneLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000038000000000000001 /* RingtoneLibrary.swift */; };
 		A1000039000000000000001 /* RingtoneLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000040000000000000001 /* RingtoneLibraryView.swift */; };
+		A1AEAEA62F7221CF001063C6 /* RadioAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1AEAEA52F7221CF001063C6 /* RadioAPIClient.swift */; };
+		A1AEAEAB2F7221F6001063C6 /* RadioPlayerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1AEAEA82F7221F6001063C6 /* RadioPlayerManager.swift */; };
+		A1AEAEAC2F7221F6001063C6 /* RadioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1AEAEAA2F7221F6001063C6 /* RadioView.swift */; };
+		A1AEAEAD2F7221F6001063C6 /* RadioStation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1AEAEA92F7221F6001063C6 /* RadioStation.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +44,10 @@
 		A1000036000000000000001 /* AudioEffectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEffectsView.swift; sourceTree = "<group>"; };
 		A1000038000000000000001 /* RingtoneLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingtoneLibrary.swift; sourceTree = "<group>"; };
 		A1000040000000000000001 /* RingtoneLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RingtoneLibraryView.swift; sourceTree = "<group>"; };
+		A1AEAEA52F7221CF001063C6 /* RadioAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioAPIClient.swift; sourceTree = "<group>"; };
+		A1AEAEA82F7221F6001063C6 /* RadioPlayerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioPlayerManager.swift; sourceTree = "<group>"; };
+		A1AEAEA92F7221F6001063C6 /* RadioStation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioStation.swift; sourceTree = "<group>"; };
+		A1AEAEAA2F7221F6001063C6 /* RadioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadioView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,6 +64,10 @@
 		A100000A000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				A1AEAEA82F7221F6001063C6 /* RadioPlayerManager.swift */,
+				A1AEAEA92F7221F6001063C6 /* RadioStation.swift */,
+				A1AEAEAA2F7221F6001063C6 /* RadioView.swift */,
+				A1AEAEA52F7221CF001063C6 /* RadioAPIClient.swift */,
 				A100000B000000000000001 /* RingToneMaker */,
 				A100000C000000000000001 /* Products */,
 			);
@@ -164,9 +176,13 @@
 				A1000017000000000000001 /* WaveformView.swift in Sources */,
 				A1000019000000000000001 /* PurchaseManager.swift in Sources */,
 				A1000021000000000000001 /* PurchaseView.swift in Sources */,
+				A1AEAEAB2F7221F6001063C6 /* RadioPlayerManager.swift in Sources */,
+				A1AEAEAC2F7221F6001063C6 /* RadioView.swift in Sources */,
+				A1AEAEAD2F7221F6001063C6 /* RadioStation.swift in Sources */,
 				A1000023000000000000001 /* AdManager.swift in Sources */,
 				A1000027000000000000001 /* CustomNumberPad.swift in Sources */,
 				A1000031000000000000001 /* SplashScreenView.swift in Sources */,
+				A1AEAEA62F7221CF001063C6 /* RadioAPIClient.swift in Sources */,
 				A1000029000000000000001 /* PlaybackProgressView.swift in Sources */,
 				A1000033000000000000001 /* AudioProcessor.swift in Sources */,
 				A1000035000000000000001 /* AudioEffectsView.swift in Sources */,
